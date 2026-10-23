@@ -46,7 +46,50 @@ func _ready() -> void:
 		body_model = Characters.spawn("asante_batakari"); add_child(body_model)
 		for mi in body_model.find_children("*", "MeshInstance3D", true, false):
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	_hands()
 	_equip()
+
+var skin := StandardMaterial3D.new()
+var sleeve := StandardMaterial3D.new()
+func _limb(parent: Node3D, a: Vector3, b: Vector3, r: float, m: Material) -> void:
+	var mi := MeshInstance3D.new(); var c := CapsuleMesh.new(); c.radius = r; c.height = a.distance_to(b) + r * 2; c.radial_segments = 8; c.rings = 2
+	mi.mesh = c; mi.material_override = m; parent.add_child(mi)
+	mi.position = (a + b) / 2.0
+	var up := (b - a).normalized()
+	var side := up.cross(Vector3.FORWARD if abs(up.z) < 0.9 else Vector3.RIGHT).normalized()
+	mi.basis = Basis(side, up, side.cross(up)).orthonormalized()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+func _hand(parent: Node3D, pos: Vector3, rot: Vector3) -> void:
+	var h := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.075, 0.055, 0.1); h.mesh = bm; h.material_override = skin
+	h.position = pos; h.rotation = rot; parent.add_child(h); h.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var th := MeshInstance3D.new(); var tm := BoxMesh.new(); tm.size = Vector3(0.025, 0.025, 0.06); th.mesh = tm; th.material_override = skin
+	th.position = Vector3(0.04, 0.02, -0.03); h.add_child(th)
+## Dark-skinned forearms in a batakari sleeve with leather amulets, gripping each weapon.
+func _hands() -> void:
+	skin.albedo_color = Color(0.17, 0.1, 0.07); skin.roughness = 0.55
+	sleeve.albedo_color = Color(0.22, 0.14, 0.08); sleeve.roughness = 0.95
+	var amulet := StandardMaterial3D.new(); amulet.albedo_color = Color(0.5, 0.33, 0.16)
+	for id in guns:
+		var g: Node3D = guns[id]; var L: float = Weapons.GUNS[id].len
+		var arms := Node3D.new(); g.add_child(arms)
+		# right hand on the wrist of the stock, forearm back to the bottom-right
+		_hand(arms, Vector3(0.0, -0.05, -0.2), Vector3(0.2, 0, 0))
+		_limb(arms, Vector3(0.01, -0.07, -0.16), Vector3(0.09, -0.2, 0.18), 0.04, skin)
+		_limb(arms, Vector3(0.07, -0.17, 0.08), Vector3(0.12, -0.26, 0.32), 0.058, sleeve)
+		# left hand under the fore-stock, forearm out to the bottom-left
+		var lz := -L * 0.5
+		_hand(arms, Vector3(0.0, -0.06, lz), Vector3(0.1, 0, 0.4))
+		_limb(arms, Vector3(-0.02, -0.08, lz + 0.03), Vector3(-0.2, -0.22, lz + 0.42), 0.04, skin)
+		_limb(arms, Vector3(-0.15, -0.19, lz + 0.32), Vector3(-0.27, -0.29, lz + 0.62), 0.058, sleeve)
+		for k in 2:
+			var am := MeshInstance3D.new(); var ab := BoxMesh.new(); ab.size = Vector3(0.05, 0.04, 0.03); am.mesh = ab; am.material_override = amulet
+			am.position = Vector3(-0.21 + k * 0.03, -0.23, lz + 0.45 + k * 0.06); arms.add_child(am)
+	for id in blades:
+		var b: Node3D = blades[id]
+		var arm := Node3D.new(); b.add_child(arm)
+		_hand(arm, Vector3(0, -0.01, 0.02), Vector3.ZERO)
+		_limb(arm, Vector3(0.01, -0.03, 0.06), Vector3(0.06, -0.12, 0.38), 0.04, skin)
+		_limb(arm, Vector3(0.05, -0.1, 0.3), Vector3(0.09, -0.17, 0.6), 0.058, sleeve)
 
 func _equip() -> void:
 	for g in guns.values(): g.visible = false
@@ -170,12 +213,14 @@ func _fire() -> void:
 	Hud.shot_flash()
 	Audio.play("musket_shot", null, -2)
 	Main.inst.noise_at(global_position, 45.0)
-	cam.rotation.x += 0.07 if st.pellets == 1 else 0.11
-	shake(0.45 if st.pellets == 1 else 0.6)
+	cam.rotation.x += 0.012 if st.pellets == 1 else 0.02   # slight muzzle climb
+	gun.position.z += 0.07; gun.rotation.x += 0.1           # the gun kicks, not your whole view
+	shake(0.18 if st.pellets == 1 else 0.25)
 	var space := get_world_3d().direct_space_state
 	var best := {}  # enemy -> [part, dmg]
 	for i in int(st.pellets):
 		var dirv: Vector3 = (-cam.global_basis.z + cam.global_basis.x * randf_range(-st.spread, st.spread) + cam.global_basis.y * randf_range(-st.spread, st.spread)).normalized()
+		if st.pellets == 1: dirv = _assist(dirv, float(st.range))
 		var q := PhysicsRayQueryParameters3D.create(cam.global_position, cam.global_position + dirv * float(st.range))
 		q.exclude = [get_rid()]
 		var h := space.intersect_ray(q)
@@ -196,6 +241,24 @@ func _fire() -> void:
 		Main.inst.score_hit(e, "You shot the %s in the %s" % [Main.inst.enemy_name(e), part], pts if killed else pts / 3, killed, part == "forehead" or part == "face")
 		Hud.hit()
 	_reload()
+
+## Gentle aim assist (stronger on pad / touch): bends the shot onto an enemy close to the crosshair.
+func _assist(dirv: Vector3, rng: float) -> Vector3:
+	var pad := Input.get_connected_joypads().size() > 0 or Hud.touch_mode
+	var max_ang := deg_to_rad(4.0 if pad else 1.5) * (1.4 if Input.is_action_pressed("aim") else 1.0)
+	var best_ang := max_ang; var best := dirv
+	var space := get_world_3d().direct_space_state
+	for e in get_tree().get_nodes_in_group("enemy"):
+		for hgt in [1.25, 1.65]:
+			var tp: Vector3 = e.global_position + Vector3.UP * hgt
+			var v := tp - cam.global_position
+			if v.length() > rng: continue
+			var ang := dirv.angle_to(v.normalized())
+			if ang < best_ang:
+				var q := PhysicsRayQueryParameters3D.create(cam.global_position, tp); q.exclude = [get_rid()]
+				var h := space.intersect_ray(q)
+				if h and h.collider == e: best_ang = ang; best = v.normalized()
+	return best
 
 func _reload() -> void:
 	if loaded or reloading: return
@@ -227,9 +290,15 @@ func _slash() -> void:
 			var txt := ("Silent afena kill on the %s" if silent else "You cut the %s with the afena") % Main.inst.enemy_name(e)
 			Main.inst.score_hit(e, txt, (200 if silent else 120) if killed else 40, killed, false)
 
+var regen_wait := 0.0
+func _process(dt: float) -> void:
+	regen_wait -= dt
+	if regen_wait <= 0.0 and hp < 100.0 and hp > 0.0: hp = min(100.0, hp + (12.0 if Game.difficulty == 0 else 7.0) * dt)
+
 func hurt(d: float, _melee := false) -> void:
 	if god: return
-	hp -= d
+	hp -= d * [0.6, 1.0, 1.25][Game.difficulty]
+	regen_wait = 4.0
 	Hud.damage(); shake(0.7)
 	Audio.play("hurt_grunt", null, -4)
 	if hp <= 0:

@@ -9,13 +9,14 @@ static func smoke(parent: Node, pos: Vector3, size := 1.0) -> void:
 		_smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_smoke_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		_smoke_mat.vertex_color_use_as_albedo = true
+		_smoke_mat.albedo_texture = load("res://assets/textures/smoke.png")
 	var p := CPUParticles3D.new()
 	var q := QuadMesh.new(); q.size = Vector2.ONE * 0.6 * size; q.material = _smoke_mat
 	p.mesh = q; p.amount = 14; p.lifetime = 2.2; p.one_shot = true; p.explosiveness = 0.9
 	p.direction = Vector3(0, 0.3, -1); p.spread = 25; p.initial_velocity_min = 0.5; p.initial_velocity_max = 2.0
 	p.gravity = Vector3(0, 0.35, 0); p.damping_min = 1.0; p.damping_max = 2.0
 	p.scale_amount_min = 1.0; p.scale_amount_max = 3.0
-	var g := Gradient.new(); g.set_color(0, Color(0.85, 0.85, 0.82, 0.7)); g.set_color(1, Color(0.8, 0.8, 0.8, 0.0))
+	var g := Gradient.new(); g.set_color(0, Color(0.85, 0.85, 0.82, 0.45)); g.set_color(1, Color(0.8, 0.8, 0.8, 0.0))
 	p.color_ramp = g
 	parent.add_child(p); p.global_position = pos; p.emitting = true
 	p.get_tree().create_timer(2.6).timeout.connect(p.queue_free)
@@ -30,6 +31,7 @@ static func impact(parent: Node, pos: Vector3, normal: Vector3, flesh: bool) -> 
 	var p := CPUParticles3D.new()
 	var m := StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; m.vertex_color_use_as_albedo = true
+	m.albedo_texture = load("res://assets/textures/soft_dot.png")
 	var q := QuadMesh.new(); q.size = Vector2.ONE * (0.12 if flesh else 0.18); q.material = m
 	p.mesh = q; p.amount = 16 if flesh else 12; p.lifetime = 0.6 if flesh else 0.9; p.one_shot = true; p.explosiveness = 1.0
 	p.direction = normal if normal != Vector3.ZERO else Vector3.UP; p.spread = 35
@@ -47,6 +49,7 @@ static func muzzle(parent: Node, pos: Vector3, dir: Vector3) -> void:
 	var m := StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.albedo_color = Color(1.0, 0.75, 0.35, 0.9); m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.albedo_texture = load("res://assets/textures/soft_dot.png")
 	var mi := MeshInstance3D.new(); var q := QuadMesh.new(); q.size = Vector2(0.35, 0.35); mi.mesh = q; mi.material_override = m
 	parent.add_child(mi); mi.global_position = pos + dir * 0.15
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

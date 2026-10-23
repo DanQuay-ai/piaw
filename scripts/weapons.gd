@@ -1,9 +1,9 @@
 class_name Weapons
 ## Weapon stats + loading/auto-fitting the Meshy weapon models.
 const GUNS := {
-	"dane_gun": {"name": "DANE GUN", "len": 1.25, "dmg": 100.0, "reload": 3.0, "pellets": 1, "spread": 0.004, "zoom": 42.0, "range": 160.0, "flip": true},
-	"long_dane": {"name": "LONG DANE", "len": 1.55, "dmg": 160.0, "reload": 4.2, "pellets": 1, "spread": 0.001, "zoom": 22.0, "range": 260.0, "flip": true},
-	"blunderbuss": {"name": "BLUNDERBUSS", "len": 0.85, "dmg": 40.0, "reload": 3.4, "pellets": 7, "spread": 0.07, "zoom": 60.0, "range": 35.0, "flip": true},
+	"dane_gun": {"name": "DANE GUN", "len": 1.25, "dmg": 100.0, "reload": 3.0, "pellets": 1, "spread": 0.004, "zoom": 42.0, "range": 300.0, "flip": true},
+	"long_dane": {"name": "LONG DANE", "len": 1.55, "dmg": 160.0, "reload": 4.2, "pellets": 1, "spread": 0.001, "zoom": 22.0, "range": 400.0, "flip": true},
+	"blunderbuss": {"name": "BLUNDERBUSS", "len": 0.85, "dmg": 40.0, "reload": 3.4, "pellets": 7, "spread": 0.07, "zoom": 60.0, "range": 45.0, "flip": true},
 }
 const BLADES := {
 	"afena_royal": {"name": "ROYAL AFENA", "len": 0.8, "dmg": 60.0, "cd": 0.45, "reach": 2.5, "flip": false},

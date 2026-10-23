@@ -148,7 +148,7 @@ func _options() -> void:
 	_btn(vb, "BACK", func(): show_screen(back_to))
 
 func _controls() -> void:
-	var vb := _panel("controls", 640)
+	var vb := _panel("controls", 660)
 	_title(vb, "CONTROLS", 38)
 	_slider(vb, "Mouse / touch look", "mouse_sens", 0.2, 3.0)
 	_slider(vb, "Stick look", "pad_sens", 0.2, 3.0)
@@ -156,9 +156,9 @@ func _controls() -> void:
 	_slider(vb, "Touch button size", "touch_scale", 0.7, 1.6)
 	pad_diag = hud._label("", 14, Hud.GOLD, hud.f_ui_b); vb.add_child(pad_diag)
 	vb.add_child(hud._label("CONTROLLER MAPPING  (pick an action, then press the button or trigger)", 14, Hud.GOLD, hud.f_ui_b))
-	var grid := GridContainer.new(); grid.columns = 2; grid.add_theme_constant_override("h_separation", 10); grid.add_theme_constant_override("v_separation", 8); vb.add_child(grid)
-	for a in [["fire", "FIRE (R2)"], ["aim", "AIM (L2)"], ["slash", "AFENA (R1)"], ["sprint", "SPRINT (L3)"], ["whistle", "WHISTLE (TRIANGLE)"], ["map", "MAP (TOUCHPAD)"]]:
-		var b := Button.new(); b.custom_minimum_size = Vector2(300, 46); b.text = a[1]
+	var grid := GridContainer.new(); grid.columns = 3; grid.add_theme_constant_override("h_separation", 10); grid.add_theme_constant_override("v_separation", 8); vb.add_child(grid)
+	for a in [["fire", "FIRE (R2)"], ["aim", "AIM (L2)"], ["slash", "AFENA (R1)"], ["sprint", "SPRINT (L3)"], ["whistle", "WHISTLE (TRIANGLE)"], ["map", "MAP (TOUCHPAD)"], ["jump", "JUMP (CROSS)"], ["crouch", "CROUCH (CIRCLE)"], ["reload", "RELOAD (SQUARE)"], ["swap_gun", "SWAP GUN (L1)"], ["swap_blade", "SWAP AFENA (D-LEFT)"], ["pause", "PAUSE (OPTIONS)"]]:
+		var b := Button.new(); b.custom_minimum_size = Vector2(205, 40); b.text = a[1]; b.add_theme_font_size_override("font_size", 14)
 		b.pressed.connect(func(): waiting_bind = a[0]; b.text = "PRESS A BUTTON / TRIGGER..."); grid.add_child(b); bind_buttons[a[0]] = [b, a[1]]
 	var keys := hud._label("Keyboard: WASD move · Shift sprint · Space jump · C crouch · LMB fire · Q/MMB aim · F/RMB afena · R reload · X swap gun · V swap afena · G whistle · M map · Esc pause", 13, Color(1, 1, 1, 0.6))
 	keys.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; keys.custom_minimum_size = Vector2(620, 0); vb.add_child(keys)
