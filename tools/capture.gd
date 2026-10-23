@@ -2,31 +2,32 @@ extends SceneTree
 ## Dev tool: renders screenshots.  godot --path . -s tools/capture.gd
 var f := 0
 var shots := []
-var cur = null
 func _initialize() -> void:
 	change_scene_to_file("res://scenes/main.tscn")
+func _snap(n: String) -> void:
+	get_root().get_texture().get_image().save_png("/tmp/c_%s.png" % n); print("shot ", n)
 func _process(_dt: float) -> bool:
 	f += 1
 	var m = Main.inst
-	if f == 30:
-		get_root().get_texture().get_image().save_png("/tmp/c_menu.png")
-		m.hud.show_game(); m._start_ambush(); m.player.hp = 99999; Game.difficulty = 0
+	if f == 20: _snap("splash"); m.hud.menus.show_screen("main")
+	if f == 26: _snap("main"); m.hud.menus.show_screen("missions")
+	if f == 32: _snap("missions"); m.hud.menus.show_screen("options")
+	if f == 38: _snap("options"); m.hud.menus.show_screen("controls")
+	if f == 44:
+		_snap("controls")
+		m.hud.show_game(); m._start_ambush(); m.player.god = true
 		var W = World.inst
 		var e0 = m.get_tree().get_nodes_in_group("enemy")[0]
-		shots = [
-			["slash", Vector3(W.path_x(70), W.height(W.path_x(70), 70) + 1, 70), 0.1, 0.0, {"slash": true}],
-		]
-	if f > 40 and f % 14 == 0 and shots.size() > 0:
-		var s = shots[0]
-		m.player.position = s[1]; m.player.rotation.y = s[2]; m.player.cam.rotation.x = s[3]
-		if s[4].has("gun"): m.player.gun_i = s[4].gun; m.player._equip()
-		if s[4].has("aim"): Input.action_press("aim")
-		else: Input.action_release("aim")
-		if s[4].has("slash"): m.player.gun.visible = false; m.player.blade.visible = true; m.player.blade.position = Vector3(0.25, -0.2, -0.2); m.player.blade.rotation = Vector3(0.3, 0.3, 0.5); m.player.set_physics_process(false)
-		if s[4].has("gorilla"): m.gorilla_charge = 1.0; m.whistle()
-	if f > 40 and f % 14 == (3 if shots.size() > 0 and shots[0][4].has("slash") else 13) and shots.size() > 0:
-		var s = shots.pop_front()
-		get_root().get_texture().get_image().save_png("/tmp/c_%s.png" % s[0])
-		print("shot ", s[0])
-	if f > 40 and shots.is_empty(): return true
+		m.player.position = e0.global_position + Vector3(0, 0.3, 10); m.player.rotation.y = 0
+		m.player.cam.rotation.x = 0.02
+		Main.inst.score_hit(e0, "You shot the British soldier in the forehead", 150, true, true)
+	if f == 58: _snap("hud")
+	if f == 60: m.hud.bigmap.visible = true
+	if f == 64: _snap("bigmap"); m.hud.bigmap.visible = false; Hud.touch_mode = true; m.hud.touch.visible = true
+	if f == 70: _snap("touch"); Hud.touch_mode = false; m.hud.touch.visible = false; m.gorilla_charge = 1.0; m.whistle()
+	if f == 110: _snap("gorilla")
+	if f == 112:
+		var W = World.inst
+		m.player.position = Vector3(-30, W.height(-30, 60) + 1, 60); m.player.rotation.y = 0.4
+	if f == 124: _snap("bush"); return true
 	return false

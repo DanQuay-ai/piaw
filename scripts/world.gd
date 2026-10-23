@@ -5,6 +5,7 @@ class_name World extends Node3D
 const X0 := -120.0; const X1 := 120.0
 const Z0 := -150.0; const Z1 := 120.0
 const STEP := 2.0
+const M := 70.0  # scenery margin beyond the playable boundary (mirrored terrain)
 const WATER := -0.45
 const FORT := Vector2(0, -110)
 const VILLAGE := Vector2(52, -40)
@@ -41,24 +42,30 @@ func _base(x: float, z: float) -> float:
 	return h
 
 func height(x: float, z: float) -> float:
+	# outside the playable area: mirror the map so the horizon is never empty
+	if x < X0: x = X0 + (X0 - x)
+	elif x > X1: x = X1 - (x - X1)
+	if z < Z0: z = Z0 + (Z0 - z)
+	elif z > Z1: z = Z1 - (z - Z1)
 	var h := _base(x, z)
 	var p := Vector2(x, z)
 	# fort hill with flat top
 	var df := p.distance_to(FORT)
 	h += 15.0 * exp(-pow(df / 44.0, 2.0))
-	h = lerp(h, fort_top, smoothstep(30.0, 23.0, df))
 	# flattened neighbourhood plateau
 	h = lerp(h, village_h, smoothstep(36.0, 24.0, p.distance_to(VILLAGE)))
 	# road: smooth and keep dry
 	var dp: float = abs(x - path_x(z))
-	h = lerp(h, max(h * 0.7 + 0.5, WATER + 0.9), smoothstep(6.0, 2.0, dp) * 0.8)
+	h = lerp(h, max(h * 0.7 + 0.5, WATER + 0.9), smoothstep(6.0, 2.0, dp) * 0.8 * smoothstep(28.0, 50.0, df))
 	# river channel (wadeable)
 	var dr: float = abs(z - river_z(x))
-	h = min(h, lerp(-1.4, h, smoothstep(2.5, 9.0, dr)))
-	if dp < 5.0 and dr < 9.0: h = max(h, -0.75)  # ford where the road crosses
+	h = min(h, lerp(-1.15, min(h, 3.0 + dr * 0.35), smoothstep(2.0, 16.0, dr)))  # gentle, walkable banks
+	if dp < 7.0 and dr < 12.0: h = max(h, -0.7)  # ford where the road crosses
 	# lake
 	var dl := p.distance_to(LAKE)
 	h = min(h, lerp(-3.5, h, smoothstep(13.0, 26.0, dl)))
+	# flat fort summit, blended last so nothing cuts into it
+	h = lerp(h, fort_top, smoothstep(34.0, 22.0, df))
 	# keep spawn dry and gentle
 	h = lerp(h, 2.0, smoothstep(14.0, 4.0, p.distance_to(SPAWN)))
 	return h
@@ -127,19 +134,31 @@ void fragment(){
 """
 
 func _terrain() -> void:
-	var nx := int((X1 - X0) / STEP) + 1
-	var nz := int((Z1 - Z0) / STEP) + 1
+	_terrain_mesh(X0 - M, X1 + M, Z0 - M, Z1 + M, STEP * 1.5 if quality == 0 else STEP)
+	_terrain_collision()
+	_bounds()
+
+func _bounds() -> void:
+	var b := StaticBody3D.new(); add_child(b)
+	var w := X1 - X0; var d := Z1 - Z0; var cx := (X0 + X1) / 2.0; var cz := (Z0 + Z1) / 2.0
+	for sp in [[Vector3(w + 4, 80, 2), Vector3(cx, 30, Z0 + 3)], [Vector3(w + 4, 80, 2), Vector3(cx, 30, Z1 - 3)],
+			[Vector3(2, 80, d + 4), Vector3(X0 + 3, 30, cz)], [Vector3(2, 80, d + 4), Vector3(X1 - 3, 30, cz)]]:
+		var cs := CollisionShape3D.new(); var sh := BoxShape3D.new(); sh.size = sp[0]; cs.shape = sh; cs.position = sp[1]; b.add_child(cs)
+
+func _terrain_mesh(ax: float, bx: float, az: float, bz: float, step: float) -> void:
+	var nx := int((bx - ax) / step) + 1
+	var nz := int((bz - az) / step) + 1
 	var hs := PackedFloat32Array(); hs.resize(nx * nz)
 	for j in nz:
 		for i in nx:
-			hs[j * nx + i] = height(X0 + i * STEP, Z0 + j * STEP)
+			hs[j * nx + i] = height(ax + i * step, az + j * step)
 	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for j in nz:
 		for i in nx:
-			var x := X0 + i * STEP; var z := Z0 + j * STEP; var h := hs[j * nx + i]
+			var x := ax + i * step; var z := az + j * step; var h := hs[j * nx + i]
 			var hx := hs[j * nx + min(i + 1, nx - 1)] - hs[j * nx + max(i - 1, 0)]
 			var hz := hs[min(j + 1, nz - 1) * nx + i] - hs[max(j - 1, 0) * nx + i]
-			var slope := Vector2(hx, hz).length() / (2.0 * STEP)
+			var slope := Vector2(hx, hz).length() / (2.0 * step)
 			st.set_color(ground_tint(x, z, h, slope))
 			st.add_vertex(Vector3(x, h, z))
 	for j in nz - 1:
@@ -156,6 +175,14 @@ func _terrain() -> void:
 	m.set_shader_parameter("detail_tex", Props.noise_tex(Color(0, 0, 0), Color(1, 1, 1), 0.1, 128))
 	mi.material_override = m
 	add_child(mi)
+
+func _terrain_collision() -> void:
+	var nx := int((X1 - X0) / STEP) + 1
+	var nz := int((Z1 - Z0) / STEP) + 1
+	var hs := PackedFloat32Array(); hs.resize(nx * nz)
+	for j in nz:
+		for i in nx:
+			hs[j * nx + i] = height(X0 + i * STEP, Z0 + j * STEP)
 	# collision: HeightMapShape3D is centred, 1 unit per cell -> scale by STEP
 	var body := StaticBody3D.new(); var cs := CollisionShape3D.new(); var hm := HeightMapShape3D.new()
 	hm.map_width = nx; hm.map_depth = nz; hm.map_data = hs
@@ -164,7 +191,7 @@ func _terrain() -> void:
 	body.add_child(cs); add_child(body)
 
 func _water() -> void:
-	var mi := MeshInstance3D.new(); var pm := PlaneMesh.new(); pm.size = Vector2(X1 - X0, Z1 - Z0)
+	var mi := MeshInstance3D.new(); var pm := PlaneMesh.new(); pm.size = Vector2(X1 - X0 + 2 * M, Z1 - Z0 + 2 * M)
 	mi.mesh = pm; mi.position = Vector3((X0 + X1) / 2.0, WATER, (Z0 + Z1) / 2.0)
 	var m := StandardMaterial3D.new()
 	m.albedo_color = Color(0.16, 0.24, 0.17, 0.82)
@@ -184,13 +211,16 @@ func ok_spot(x: float, z: float, clear := 4.0) -> bool:
 	if p.distance_to(VILLAGE) < 30.0 or p.distance_to(FORT) < 30.0 or p.distance_to(SPAWN) < 7.0: return false
 	return true
 
-func _scatter(mesh: Mesh, count: int, smin: float, smax: float, tint_var: float, clear: float, collide_r: float, hide := false, grassy := false) -> void:
+func _scatter(mesh: Mesh, count: int, smin: float, smax: float, tint_var: float, clear: float, collide_r: float, hide := false, grassy := false, ext := false) -> void:
 	var mm := MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.use_colors = true; mm.mesh = mesh
 	var xf := []; var cols := []
 	var tries := 0
 	while xf.size() < count and tries < count * 20:
 		tries += 1
 		var x := rng.randf_range(X0 + 6, X1 - 6); var z := rng.randf_range(Z0 + 6, Z1 - 6)
+		if ext:
+			x = rng.randf_range(X0 - M, X1 + M); z = rng.randf_range(Z0 - M, Z1 + M)
+			if x > X0 and x < X1 and z > Z0 and z < Z1: continue
 		if not ok_spot(x, z, clear): continue
 		if grassy and ground_tint(x, z, height(x, z), 0.0).r < 0.45: continue
 		var s := rng.randf_range(smin, smax)
@@ -225,6 +255,11 @@ func _forest() -> void:
 	_scatter(Props.elephant_grass(), int(220 * q), 0.8, 1.3, 0.1, 2.5, 0.0, true)
 	_scatter(Props.plantain(), int(60 * q), 0.8, 1.2, 0.1, 3.0, 0.0, true)
 	_scatter(Props.grass_tuft(), int(5500 * q), 0.6, 1.3, 0.15, 1.6, 0.0, false, true)
+	# scenery beyond the boundary
+	_scatter(Props.ceiba(), int(40 * q), 0.9, 1.4, 0.1, 0.0, 0.0, false, false, true)
+	for sd in [3, 4]: _scatter(Props.broadleaf(sd), int(160 * q), 0.9, 1.5, 0.15, 0.0, 0.0, false, false, true)
+	_scatter(Props.oil_palm(), int(60 * q), 0.8, 1.2, 0.12, 0.0, 0.0, false, false, true)
+	_scatter(Props.shrub(), int(120 * q), 0.9, 1.6, 0.2, 0.0, 0.0, false, false, true)
 	_scatter(Props.boulder(), 45, 0.6, 2.2, 0.1, 3.0, 0.9)
 	_scatter(Props.termite_mound(), 25, 0.8, 1.4, 0.05, 3.0, 0.7)
 	_logs(24)
@@ -238,6 +273,21 @@ func _logs(n: int) -> void:
 		add_child(mi)
 		var cs := CollisionShape3D.new(); var b := BoxShape3D.new(); b.size = Vector3(5, 0.8, 0.8)
 		cs.shape = b; cs.position = mi.position + Vector3(0, 0.4, 0); cs.rotation = mi.rotation; colliders.add_child(cs)
+
+## Top-down map texture of the playable area (for the minimap / full map).
+func map_image(px := 256) -> Image:
+	var img := Image.create(px, int(px * (Z1 - Z0) / (X1 - X0)), false, Image.FORMAT_RGB8)
+	for j in img.get_height():
+		for i in img.get_width():
+			var x := X0 + (i + 0.5) / img.get_width() * (X1 - X0); var z := Z0 + (j + 0.5) / img.get_height() * (Z1 - Z0)
+			var h := height(x, z); var t := ground_tint(x, z, h, 0.0)
+			var c := Color(0.42, 0.24, 0.15).lerp(Color(0.22, 0.3, 0.14), t.r)
+			if foliage.has(Vector2i(int(floor(x / 2.0)), int(floor(z / 2.0)))): c = c.darkened(0.15)
+			if abs(x - path_x(z)) < 2.5: c = Color(0.62, 0.3, 0.16)
+			c = c.lightened(clampf(h / 30.0, 0.0, 0.3))
+			if h < WATER: c = Color(0.16, 0.3, 0.36)
+			img.set_pixel(i, j, c)
+	return img
 
 func is_hidden_spot(p: Vector3) -> bool:
 	return foliage.has(Vector2i(int(floor(p.x / 2.0)), int(floor(p.z / 2.0))))

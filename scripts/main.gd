@@ -18,11 +18,16 @@ var gorilla_charge := 0.35   # 0..1, whistle when full
 var gorilla_out := false
 var alarm_raised := false
 var kills := 0
+var score := 0
+var map_tex: ImageTexture
 
 func _ready() -> void:
 	inst = self
 	InputSetup.setup()
+	Settings.load_cfg()
 	Audio.init(self)
+	Audio.play_music("menu")
+	var grade := CanvasLayer.new(); grade.layer = 1; grade.set_script(load("res://scripts/grading.gd")); add_child(grade)
 	hud = Hud.new(); add_child(hud)
 	hud.play_pressed.connect(_start)
 	hud.restart_pressed.connect(func(): get_tree().paused = false; get_tree().reload_current_scene())
@@ -30,6 +35,7 @@ func _ready() -> void:
 	_fort()
 	add_child(enemies)
 	_villagers()
+	map_tex = ImageTexture.create_from_image(world.map_image(160))
 	player = _make_player(Vector3(World.SPAWN.x, world.height(World.SPAWN.x, World.SPAWN.y) + 1.0, World.SPAWN.y))
 	player.died.connect(_on_died)
 	checkpoint = player.position
@@ -37,6 +43,7 @@ func _ready() -> void:
 
 func _start() -> void:
 	hud.show_game()
+	Audio.play_music("battle", -10.0); Audio.ambience(true)
 	if stage == 0 and remaining == 0:
 		_start_ambush()
 		Audio.say("narr_intro", 0.0)
@@ -137,6 +144,17 @@ func enemy_down(_e, melee: bool) -> void:
 	elif stage == 1:
 		stage = 2; Hud.objective("The walls are yours. Stand at the flag to raise the Asante colours.")
 		objective_pos = flag_zone.global_position
+
+func enemy_name(e) -> String:
+	match e.kind:
+		"british_redcoat": return "British soldier"
+		"west_india_regt": return "West India Regiment soldier"
+		"dutch_soldier": return "Dutch soldier"
+	return "soldier"
+
+func score_hit(_e, text: String, pts: int, killed: bool, headshot: bool) -> void:
+	score += pts
+	Hud.popup(text, pts, headshot, killed)
 
 func whistle() -> void:
 	if gorilla_out: Hud.msg("The gorilla is already loose"); return

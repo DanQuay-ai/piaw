@@ -29,13 +29,14 @@ func alert(by_sound := Vector3.ZERO) -> void:
 		Main.inst.on_alert(self)
 	if by_sound != Vector3.ZERO: investigate = by_sound
 
-func hurt(d: float, melee := false) -> void:
-	if dead: return
+func hurt(d: float, melee := false) -> bool:
+	if dead: return false
 	hp -= d
 	if hp <= 0:
-		die(melee); return
+		die(melee); return true
 	alert(); busy = 0.5
 	Characters.play(model, "hit", 1.0, true)
+	return false
 
 func die(melee := false) -> void:
 	if dead: return

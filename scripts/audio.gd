@@ -25,12 +25,31 @@ static var _cache := {}
 static var _last_line := {}
 static var voice: AudioStreamPlayer
 
+static var music_p: AudioStreamPlayer
+static var amb: AudioStreamPlayer
+
 static func init(r: Node) -> void:
 	root = r
-	voice = AudioStreamPlayer.new(); voice.bus = "Master"; root.add_child(voice)
-	var amb := AudioStreamPlayer.new(); var s: AudioStream = _load(SFX + "jungle_ambience.mp3")
+	Settings.apply()
+	voice = AudioStreamPlayer.new(); voice.bus = "Voice"; voice.process_mode = Node.PROCESS_MODE_ALWAYS; root.add_child(voice)
+	music_p = AudioStreamPlayer.new(); music_p.bus = "Music"; music_p.process_mode = Node.PROCESS_MODE_ALWAYS; root.add_child(music_p)
+	amb = AudioStreamPlayer.new(); var s: AudioStream = _load(SFX + "jungle_ambience.mp3")
 	if s is AudioStreamMP3: s.loop = true
-	amb.stream = s; amb.volume_db = -8; amb.autoplay = true; root.add_child(amb)
+	amb.stream = s; amb.volume_db = -8; amb.bus = "SFX"; root.add_child(amb)
+
+static func ambience(on: bool) -> void:
+	if amb and on and not amb.playing: amb.play()
+	elif amb and not on: amb.stop()
+
+static func play_music(name: String, vol := -6.0) -> void:
+	if not music_p: return
+	var s := _load("res://audio/music/" + name + ".mp3")
+	if not s or music_p.stream == s: return
+	if s is AudioStreamMP3: s.loop = true
+	var tw := root.create_tween()
+	tw.tween_property(music_p, "volume_db", -40.0, 0.6 if music_p.playing else 0.0)
+	tw.tween_callback(func(): music_p.stream = s; music_p.play())
+	tw.tween_property(music_p, "volume_db", vol, 1.2)
 
 static func _load(p: String) -> AudioStream:
 	if _cache.has(p): return _cache[p]
@@ -43,11 +62,11 @@ static func play(name: String, pos = null, vol := 0.0, pitch_var := 0.08) -> voi
 	if not s: return
 	var p: Node
 	if pos == null:
-		var a := AudioStreamPlayer.new(); a.stream = s; a.volume_db = vol; p = a
+		var a := AudioStreamPlayer.new(); a.stream = s; a.volume_db = vol; a.bus = "SFX"; p = a
 		a.pitch_scale = randf_range(1.0 - pitch_var, 1.0 + pitch_var)
 		root.add_child(a); a.play(); a.finished.connect(a.queue_free)
 	else:
-		var a := AudioStreamPlayer3D.new(); a.stream = s; a.volume_db = vol; a.unit_size = 12.0; a.max_distance = 160.0
+		var a := AudioStreamPlayer3D.new(); a.stream = s; a.volume_db = vol; a.unit_size = 12.0; a.max_distance = 160.0; a.bus = "SFX"
 		a.pitch_scale = randf_range(1.0 - pitch_var, 1.0 + pitch_var)
 		root.add_child(a); a.global_position = pos; a.play(); a.finished.connect(a.queue_free)
 

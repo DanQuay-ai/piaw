@@ -10,6 +10,11 @@ var life := 22.0
 func _ready() -> void:
 	if Characters.exists("gorilla"):
 		model = Characters.spawn("gorilla"); model.scale = Vector3.ONE * 1.15; add_child(model)
+		for mi in model.find_children("*", "MeshInstance3D", true, false):  # deep black fur, not ash grey
+			for s in mi.mesh.get_surface_count():
+				var m = mi.get_active_material(s)
+				if m is BaseMaterial3D:
+					m = m.duplicate(); m.albedo_color = Color(0.22, 0.2, 0.2); m.roughness = 0.85; mi.set_surface_override_material(s, m)
 	Audio.play("gorilla_roar", global_position, 4)
 	Audio.say("grrr_baow", 0.0)
 	_pick()
@@ -47,7 +52,9 @@ func _process(dt: float) -> void:
 				if d.length() < 12.0 and kills == 0: Audio.say("off_gorilla", 30.0)
 		"maul":
 			if t <= 0:
-				if is_instance_valid(target) and not target.dead: target.die(true)
+				if is_instance_valid(target) and not target.dead:
+					target.die(true); Main.inst.score_hit(target, "The gorilla mauled the %s" % Main.inst.enemy_name(target), 75, true, false)
+				get_tree().get_first_node_in_group("player").shake(0.3)
 				kills += 1
 				state = "roar"; t = 1.4
 				Characters.play(model, "roar", 1.0, true)

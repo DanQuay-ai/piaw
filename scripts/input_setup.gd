@@ -18,6 +18,7 @@ static func setup() -> void:
 		"whistle": [_k(KEY_G), _b(JOY_BUTTON_DPAD_UP), _b(JOY_BUTTON_Y)],           # D-pad up / Triangle
 		"swap_gun": [_k(KEY_X), _m(MOUSE_BUTTON_WHEEL_UP), _b(JOY_BUTTON_DPAD_RIGHT), _b(JOY_BUTTON_LEFT_SHOULDER)], # L1
 		"swap_blade": [_k(KEY_V), _b(JOY_BUTTON_DPAD_LEFT)],
+		"map": [_k(KEY_M), _k(KEY_TAB), _b(JOY_BUTTON_BACK), _b(JOY_BUTTON_TOUCHPAD)],
 		"pause": [_k(KEY_ESCAPE), _k(KEY_P), _b(JOY_BUTTON_START)],
 	}
 	for a in map:
