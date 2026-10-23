@@ -1,0 +1,4 @@
+keys.cfg
+.godot/
+build/
+*.import
