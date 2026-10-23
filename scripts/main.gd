@@ -1,6 +1,13 @@
 class_name Main extends Node3D
-## Mission 1 (Nsamankow, 1824 - prototype): break the column in the forest, then take the hill fort.
+## Runs a mission from Missions: map layout + stages (kill / waves / reach / capture / end).
 static var inst: Main
+static var mission_id := "nsamankow"
+static var autostart := false
+var mdef: Dictionary
+var stages: Array
+var waves_left: Array = []
+var wave_target := Vector3.ZERO
+var wave_t := 0.0
 var hud: Hud
 var world: World
 var stage := 0
@@ -32,56 +39,81 @@ func _ready() -> void:
 	hud = Hud.new(); add_child(hud)
 	hud.play_pressed.connect(_start)
 	hud.restart_pressed.connect(func(): get_tree().paused = false; get_tree().reload_current_scene())
+	mdef = Missions.get_def(mission_id); stages = mdef.stages
+	World.configure(mdef.map)
 	world = World.new(); add_child(world); world.build()
-	_fort()
+	if World.HAS_FORT: _fort(mdef.map.get("fort_style", "hill"), float(mdef.map.get("fort_yaw", 0.0)))
 	add_child(enemies)
-	_villagers()
+	if World.HAS_VILLAGE: _villagers()
 	map_tex = ImageTexture.create_from_image(world.map_image(160))
-	player = _make_player(Vector3(World.SPAWN.x, world.height(World.SPAWN.x, World.SPAWN.y) + 1.0, World.SPAWN.y))
+	var sy: float = world.height(World.SPAWN.x, World.SPAWN.y) + 1.0
+	if mdef.get("start_in_fort", false): sy = world.fort_top + 1.0
+	player = _make_player(Vector3(World.SPAWN.x, sy, World.SPAWN.y))
 	player.died.connect(_on_died)
 	checkpoint = player.position
 	get_tree().paused = true  # wait in menu
+	if autostart:
+		autostart = false
+		hud.menus.show_screen("")
+		_start.call_deferred()
 
 func _start() -> void:
 	hud.show_game()
 	Audio.play_music("battle", -10.0); Audio.ambience(true)
 	if stage == 0 and remaining == 0:
-		_start_ambush()
-		Audio.say("narr_intro", 0.0)
-		await get_tree().create_timer(11.0).timeout
+		_begin_stage(0)
+		Audio.say(mdef.narr, 0.0)
+		await get_tree().create_timer(10.0).timeout
 		Audio.say("yenko", 0.0)
 
 # ---------------------------------------------------------------- fort
-func _fort() -> void:
+func _fort(style: String, yaw: float) -> void:
 	var c := Vector3(World.FORT.x, world.fort_top, World.FORT.y)
-	var body := StaticBody3D.new(); add_child(body)
-	var walls := [
-		[Vector3(30, 5, 1.2), Vector3(0, 2.5, -15)], [Vector3(1.2, 5, 30), Vector3(-15, 2.5, 0)], [Vector3(1.2, 5, 30), Vector3(15, 2.5, 0)],
-		[Vector3(11, 5, 1.2), Vector3(-9.5, 2.5, 15)], [Vector3(11, 5, 1.2), Vector3(9.5, 2.5, 15)],
-		[Vector3(5, 7, 5), Vector3(-15, 3.5, -15)], [Vector3(5, 7, 5), Vector3(15, 3.5, -15)],
-		[Vector3(5, 7, 5), Vector3(-15, 3.5, 15)], [Vector3(5, 7, 5), Vector3(15, 3.5, 15)],
-		[Vector3(5, 3, 5), Vector3(0, 1.5, 9)], [Vector3(10, 4, 6), Vector3(0, 2, -9)],
-	]
+	var root := Node3D.new(); root.position = c; root.rotation.y = yaw; add_child(root)
+	var body := StaticBody3D.new(); root.add_child(body)
+	var walls := []
+	var dado := 4.0
+	if style == "castle":  # Christiansborg: big white sea castle with towers
+		dado = 3.5
+		walls = [
+			[Vector3(40, 8, 1.6), Vector3(0, 4, -20)], [Vector3(1.6, 8, 40), Vector3(-20, 4, 0)], [Vector3(1.6, 8, 40), Vector3(20, 4, 0)],
+			[Vector3(16, 8, 1.6), Vector3(-12, 4, 20)], [Vector3(16, 8, 1.6), Vector3(12, 4, 20)],
+			[Vector3(7, 12, 7), Vector3(-20, 6, -20)], [Vector3(7, 12, 7), Vector3(20, 6, -20)], [Vector3(7, 11, 7), Vector3(-20, 5.5, 20)], [Vector3(7, 11, 7), Vector3(20, 5.5, 20)],
+			[Vector3(18, 6, 8), Vector3(0, 3, -14)], [Vector3(6, 2, 6), Vector3(-14, 1, 8)], [Vector3(6, 2, 6), Vector3(14, 1, 8)],
+		]
+	else:
+		walls = [
+			[Vector3(30, 5, 1.2), Vector3(0, 2.5, -15)], [Vector3(1.2, 5, 30), Vector3(-15, 2.5, 0)], [Vector3(1.2, 5, 30), Vector3(15, 2.5, 0)],
+			[Vector3(11, 5, 1.2), Vector3(-9.5, 2.5, 15)], [Vector3(11, 5, 1.2), Vector3(9.5, 2.5, 15)],
+			[Vector3(5, 7, 5), Vector3(-15, 3.5, -15)], [Vector3(5, 7, 5), Vector3(15, 3.5, -15)],
+			[Vector3(5, 7, 5), Vector3(-15, 3.5, 15)], [Vector3(5, 7, 5), Vector3(15, 3.5, 15)],
+			[Vector3(5, 3, 5), Vector3(0, 1.5, 9)], [Vector3(10, 4, 6), Vector3(0, 2, -9)],
+		]
 	for w in walls:
-		var sz: Vector3 = w[0] + Vector3(0, 3, 0)  # 3 m foundation into the hill
+		var sz: Vector3 = w[0] + Vector3(0, 3, 0)  # 3 m foundation into the ground
 		var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = sz; mi.mesh = bm
-		var m: ShaderMaterial = Buildings.wall_mat.duplicate(); m.set_shader_parameter("half_h", sz.y / 2.0); m.set_shader_parameter("dado", 4.0)
-		mi.material_override = m; mi.position = c + w[1] - Vector3(0, 1.5, 0); add_child(mi)
+		var mat: ShaderMaterial = Buildings.wall_mat.duplicate(); mat.set_shader_parameter("half_h", sz.y / 2.0); mat.set_shader_parameter("dado", dado); mat.set_shader_parameter("tint", 0.78 if style == "castle" else 0.9)
+		mi.material_override = mat; mi.position = w[1] - Vector3(0, 1.5, 0); root.add_child(mi)
 		var cs := CollisionShape3D.new(); var sh := BoxShape3D.new(); sh.size = sz; cs.shape = sh; cs.position = mi.position; body.add_child(cs)
-	for x in [-15, 15]:
-		for z in [-15, 15]:
-			_cannon_mesh(c + Vector3(x, 7.2, z), atan2(float(x), float(z)))
-	cannon = _cannon_mesh(c + Vector3(0, 3.6, 9), 0.0)
+	var tower_h := 12.2 if style == "castle" else 7.2
+	var tx := 20 if style == "castle" else 15
+	for x in [-tx, tx]:
+		for z in [-tx, tx]:
+			_cannon_mesh(root, Vector3(x, tower_h, z), atan2(float(x), float(z)))
+	cannon = _cannon_mesh(root, Vector3(0, 3.6, 9) if style != "castle" else Vector3(-14, 2.6, 8), 0.0)
 	var pole := MeshInstance3D.new(); var pm := CylinderMesh.new(); pm.top_radius = 0.06; pm.bottom_radius = 0.08; pm.height = 9
-	pole.mesh = pm; pole.material_override = Props.bark; pole.position = c + Vector3(0, 4.5, -2); add_child(pole)
+	pole.mesh = pm; pole.material_override = Props.bark; pole.position = Vector3(0, 4.5, -2); root.add_child(pole)
 	flag = MeshInstance3D.new(); var fm := BoxMesh.new(); fm.size = Vector3(2.4, 1.5, 0.04); flag.mesh = fm
-	var fmat := StandardMaterial3D.new(); fmat.albedo_color = Color(0.75, 0.1, 0.12); flag.material_override = fmat
-	flag.position = c + Vector3(1.25, 8.2, -2); add_child(flag)
-	flag_zone = Area3D.new(); flag_zone.position = c + Vector3(0, 1, -2)
-	var zs := CollisionShape3D.new(); var sp := SphereShape3D.new(); sp.radius = 3.5; zs.shape = sp; flag_zone.add_child(zs); add_child(flag_zone)
+	var fmat := StandardMaterial3D.new(); fmat.albedo_color = Color(0.75, 0.1, 0.12) if style != "castle" else Color(0.75, 0.1, 0.12); flag.material_override = fmat
+	flag.position = Vector3(1.25, 8.2, -2); root.add_child(flag)
+	flag_zone = Area3D.new(); flag_zone.position = Vector3(0, 1, -2); root.add_child(flag_zone)
+	var zs := CollisionShape3D.new(); var sp := SphereShape3D.new(); sp.radius = 3.5; zs.shape = sp; flag_zone.add_child(zs)
+	fort_root = root
 
-func _cannon_mesh(pos: Vector3, yaw: float) -> Node3D:
-	var n := Node3D.new(); n.position = pos; n.rotation.y = yaw; add_child(n)
+var fort_root: Node3D
+
+func _cannon_mesh(parent: Node3D, pos: Vector3, yaw: float) -> Node3D:
+	var n := Node3D.new(); n.position = pos; n.rotation.y = yaw; parent.add_child(n)
 	var iron := StandardMaterial3D.new(); iron.albedo_color = Color(0.12, 0.12, 0.13); iron.metallic = 0.7; iron.roughness = 0.45
 	var b := MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.2; cm.bottom_radius = 0.32; cm.height = 2.6; cm.radial_segments = 10
 	b.mesh = cm; b.material_override = iron; b.rotation.x = PI / 2; b.position.z = 0.6; n.add_child(b)
@@ -139,14 +171,12 @@ func enemy_down(_e, melee: bool) -> void:
 	gorilla_charge = min(1.0, gorilla_charge + 0.18)
 	Audio.say("masa_ku_no" if melee and randf() < 0.6 else "asaaka", 3.0)
 	Hud.kill_feed(("AFENA" if melee else player.gun_stats().name) + "  >  " + ("REDCOAT" if _e.kind == "british_redcoat" else ("WEST INDIA REGT" if _e.kind == "west_india_regt" else "SOLDIER")))
-	if remaining > 0:
-		Hud.msg("%d left" % remaining); return
-	if stage == 0: Hud.msg("The column breaks and flees!"); _start_fort()
-	elif stage == 1:
-		stage = 2; Hud.objective("The walls are yours. Stand at the flag to raise the Asante colours.")
-		objective_pos = flag_zone.global_position
+	if remaining > 0 or not waves_left.is_empty():
+		Hud.msg("%d left" % remaining if remaining > 0 else "Wave broken! More are coming..."); return
+	Hud.msg("PIAW!"); _next_stage()
 
 func enemy_name(e) -> String:
+	if mdef.names.has(e.kind): return mdef.names[e.kind]
 	match e.kind:
 		"british_redcoat": return "British soldier"
 		"west_india_regt": return "West India Regiment soldier"
@@ -172,33 +202,84 @@ func whistle() -> void:
 	g.tree_exited.connect(func(): gorilla_out = false)
 
 # ---------------------------------------------------------------- mission flow
-func _start_ambush() -> void:
-	stage = 0
-	Hud.objective("Nsamankow, 1824. A British column marches up the red road. Hide in the bush and break it.")
-	var kinds := ["british_redcoat", "west_india_regt", "british_redcoat", "west_india_regt", "british_redcoat", "british_redcoat"]
-	for i in kinds.size():
-		var z := 40.0 - i * 4.0
-		_make_enemy(Vector3(world.path_x(z) + randf_range(-2, 2), 0, z), kinds[i])
-	objective_pos = Vector3(world.path_x(30), 0, 30)
+func _fort_c() -> Vector3:
+	return fort_root.global_position if fort_root else Vector3(World.FORT.x, world.fort_top, World.FORT.y)
 
-func _start_fort() -> void:
-	stage = 1
+func _next_stage() -> void:
+	_begin_stage(stage + 1)
+
+func _begin_stage(i: int) -> void:
+	stage = i
 	alarm_raised = false
-	checkpoint = Vector3(world.path_x(-40), world.height(world.path_x(-40), -40) + 1, -40)
-	Hud.objective("Take the hill fort. Silence the cannon crews and clear the walls.")
-	Audio.say("yenko", 0.0)
-	var c := Vector3(World.FORT.x, world.fort_top, World.FORT.y)
-	objective_pos = c
-	var posts := [[Vector3(-4, 3.2, 9), "british_redcoat"], [Vector3(4, 3.2, 9), "west_india_regt"], [Vector3(-8, 0.1, 4), "british_redcoat"],
-		[Vector3(8, 0.1, -4), "west_india_regt"], [Vector3(-15, 7.1, -15), "british_redcoat"], [Vector3(15, 7.1, 15), "british_redcoat"]]
-	for p in posts: _make_enemy(c + p[0] + Vector3(0, 0.5, 0), p[1], true)
+	if i >= stages.size():
+		_finish(); return
+	var s: Dictionary = stages[i]
+	Hud.objective(s.text)
+	if i > 0: Audio.say("yenko", 0.0); checkpoint = player.global_position + Vector3.UP
+	match s.type:
+		"kill":
+			if s.has("column"):
+				for k in s.column.size():
+					var z: float = 40.0 - k * 4.0
+					_make_enemy(Vector3(world.path_x(z) + randf_range(-2, 2), 0, z), s.column[k])
+			if s.has("posts"):
+				for p in s.posts:
+					var lp: Vector3 = fort_root.global_transform * p[0] if fort_root else _fort_c() + p[0]
+					_make_enemy(lp + Vector3(0, 0.5, 0) if p[0].y != 0.0 else Vector3(lp.x, world.fort_top + 0.6, lp.z), p[1], true)
+			if s.has("posts_abs"):
+				for p in s.posts_abs: _make_enemy(p[0], p[1], true)
+		"waves":
+			waves_left = s.waves.duplicate(true)
+			match s.target:
+				"fort": wave_target = _fort_c()
+				"village": wave_target = Vector3(World.VILLAGE.x, world.village_h, World.VILLAGE.y)
+				_: wave_target = Vector3(world.path_x(-50), world.height(world.path_x(-50), -50), -50)
+			objective_pos = wave_target
+			wave_t = 2.0
+		"reach":
+			objective_pos = s.pos
+		"capture":
+			capture = 0.0
+			objective_pos = flag_zone.global_position
+		"end":
+			_finish()
+
+func _spawn_wave() -> void:
+	var w: Array = waves_left.pop_front()
+	for p in w:
+		var e = _make_enemy(p[0], p[1])
+		e.alerted = true; e.investigate = wave_target + Vector3(randf_range(-6, 6), 0, randf_range(-6, 6))
+	Hud.msg("Wave incoming!  (%d more after this)" % waves_left.size())
+	Audio.say("off_bayonet", 0.0)
+
+func _finish() -> void:
+	stage = 99
+	Hud.objective("Mission complete.")
+	if flag: flag.material_override.albedo_color = Color(0.85, 0.66, 0.12)
+	Audio.play("talking_drum", null, 0, 0.0)
+	Audio.say("asaaka", 0.0)
+	await get_tree().create_timer(2.5).timeout
+	hud.show_end("PIAW!  %s" % mdef.title)
 
 func _process(dt: float) -> void:
 	if get_tree().paused or not player: return
 	if not gorilla_out: gorilla_charge = min(1.0, gorilla_charge + dt / 80.0)
-	if stage == 0 and remaining > 0:  # objective marker follows the column
-		for e in get_tree().get_nodes_in_group("enemy"): objective_pos = e.global_position; break
-	if stage == 1 and cannon:
+	if stage >= stages.size(): return
+	var s: Dictionary = stages[stage]
+	if s.type == "kill" and remaining > 0:  # marker follows the nearest enemy
+		var bd := INF
+		for e in get_tree().get_nodes_in_group("enemy"):
+			var d: float = e.global_position.distance_to(player.global_position)
+			if d < bd: bd = d; objective_pos = e.global_position
+	if s.type == "waves":
+		if remaining == 0 and not waves_left.is_empty():
+			wave_t -= dt
+			if wave_t <= 0: _spawn_wave(); wave_t = 6.0
+		elif remaining == 0 and waves_left.is_empty(): _next_stage(); return
+	if s.type == "reach":
+		var d2 := Vector2(player.global_position.x - s.pos.x, player.global_position.z - s.pos.z).length()
+		if d2 < s.radius: Hud.msg("PIAW!"); _next_stage(); return
+	if s.get("cannon", false) and cannon:
 		cannon.look_at(player.global_position)
 		cannon_t -= dt
 		if cannon_t <= 0 and cannon.global_position.distance_to(player.global_position) < 80:
@@ -210,16 +291,9 @@ func _process(dt: float) -> void:
 			var q := PhysicsRayQueryParameters3D.create(muzzle, player.global_position + Vector3.UP)
 			var hit := get_world_3d().direct_space_state.intersect_ray(q)
 			if hit and hit.collider == player: player.hurt(45)
-	if stage == 2 and player in flag_zone.get_overlapping_bodies():
+	if s.type == "capture" and player in flag_zone.get_overlapping_bodies():
 		capture += dt; Hud.msg("Raising the colours... %d%%" % int(capture / 5.0 * 100))
-		if capture >= 5.0:
-			stage = 3
-			flag.material_override.albedo_color = Color(0.85, 0.66, 0.12)
-			Hud.objective("Fort taken.")
-			Audio.play("talking_drum", null, 0, 0.0)
-			Audio.say("asaaka", 0.0)
-			await get_tree().create_timer(2.5).timeout
-			hud.show_end("PIAW!  FORT TAKEN")
+		if capture >= 5.0: _next_stage()
 
 func _on_died() -> void:
 	Audio.say("wasei", 0.0)

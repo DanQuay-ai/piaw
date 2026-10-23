@@ -3,6 +3,9 @@ extends CharacterBody3D
 signal died
 var hp := 100.0
 var loaded := true
+var ammo := 6
+var rof_t := 0.0
+var ammo_of := {}
 var reloading := false
 var reload_t := 0.0
 var crouched := false
@@ -51,45 +54,79 @@ func _ready() -> void:
 
 var skin := StandardMaterial3D.new()
 var sleeve := StandardMaterial3D.new()
-func _limb(parent: Node3D, a: Vector3, b: Vector3, r: float, m: Material) -> void:
-	var mi := MeshInstance3D.new(); var c := CapsuleMesh.new(); c.radius = r; c.height = a.distance_to(b) + r * 2; c.radial_segments = 8; c.rings = 2
+var gold := StandardMaterial3D.new()
+var amulet := StandardMaterial3D.new()
+
+func _seg(parent: Node3D, a: Vector3, b: Vector3, ra: float, rb: float, m: Material, sides := 10) -> MeshInstance3D:
+	## tapered cylinder from a (radius ra) to b (radius rb), with rounded ends
+	var mi := MeshInstance3D.new(); var c := CylinderMesh.new()
+	c.bottom_radius = ra; c.top_radius = rb; c.height = a.distance_to(b); c.radial_segments = sides; c.rings = 1
 	mi.mesh = c; mi.material_override = m; parent.add_child(mi)
 	mi.position = (a + b) / 2.0
 	var up := (b - a).normalized()
-	var side := up.cross(Vector3.FORWARD if abs(up.z) < 0.9 else Vector3.RIGHT).normalized()
+	var ref := Vector3.FORWARD if abs(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	var side := up.cross(ref).normalized()
 	mi.basis = Basis(side, up, side.cross(up)).orthonormalized()
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-func _hand(parent: Node3D, pos: Vector3, rot: Vector3) -> void:
-	var h := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.075, 0.055, 0.1); h.mesh = bm; h.material_override = skin
-	h.position = pos; h.rotation = rot; parent.add_child(h); h.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var th := MeshInstance3D.new(); var tm := BoxMesh.new(); tm.size = Vector3(0.025, 0.025, 0.06); th.mesh = tm; th.material_override = skin
-	th.position = Vector3(0.04, 0.02, -0.03); h.add_child(th)
-## Dark-skinned forearms in a batakari sleeve with leather amulets, gripping each weapon.
+	for e in [[a, ra], [b, rb]]:
+		var s := MeshInstance3D.new(); var sm := SphereMesh.new(); sm.radius = e[1]; sm.height = e[1] * 2; sm.radial_segments = sides; sm.rings = 5
+		s.mesh = sm; s.material_override = m; s.position = e[0]; parent.add_child(s); s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+## A gripping hand at `pos`, wrapped around an object running along `axis` (local), knuckles toward `out`.
+func _grip(parent: Node3D, pos: Vector3, axis: Vector3, out: Vector3, scale_k := 1.0) -> void:
+	var h := Node3D.new(); parent.add_child(h); h.position = pos
+	var x := axis.normalized(); var y := out.normalized(); var z := x.cross(y).normalized(); y = z.cross(x).normalized()
+	h.basis = Basis(x, y, z).scaled(Vector3.ONE * scale_k)
+	# palm (back of the hand against the object)
+	var palm := MeshInstance3D.new(); var pb := BoxMesh.new(); pb.size = Vector3(0.085, 0.03, 0.075); palm.mesh = pb; palm.material_override = skin
+	palm.position = Vector3(0, 0.035, 0.0); h.add_child(palm); palm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# four curled fingers wrapping around the stock
+	for i in 4:
+		var fx := -0.03 + i * 0.02
+		var r: float = 0.0105 - abs(i - 1.5) * 0.0008
+		_seg(h, Vector3(fx, 0.04, 0.035), Vector3(fx, 0.012, 0.055), r, r * 0.95, skin, 6)
+		_seg(h, Vector3(fx, 0.012, 0.055), Vector3(fx, -0.022, 0.04), r * 0.95, r * 0.85, skin, 6)
+	# thumb along the other side
+	_seg(h, Vector3(0.035, 0.03, -0.03), Vector3(0.05, -0.005, -0.04), 0.012, 0.01, skin, 6)
+	_seg(h, Vector3(0.05, -0.005, -0.04), Vector3(0.04, -0.025, -0.02), 0.01, 0.009, skin, 6)
+
+## Forearm from wrist to elbow (off-screen) with batakari sleeve, gold armlet and leather amulets.
+func _forearm(parent: Node3D, wrist: Vector3, elbow: Vector3) -> void:
+	_seg(parent, wrist, elbow, 0.03, 0.048, skin, 12)
+	var d := (elbow - wrist)
+	var ring := MeshInstance3D.new(); var tm := TorusMesh.new(); tm.inner_radius = 0.031; tm.outer_radius = 0.041; tm.rings = 16; tm.ring_segments = 6
+	ring.mesh = tm; ring.material_override = gold; parent.add_child(ring); ring.position = wrist + d * 0.12
+	var up := d.normalized(); var ref := Vector3.FORWARD if abs(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	var side := up.cross(ref).normalized(); ring.basis = Basis(side, up, side.cross(up)).orthonormalized()
+	_seg(parent, wrist + d * 0.62, elbow + d * 0.25, 0.06, 0.068, sleeve, 12)  # smock sleeve
+	for k in 3:
+		var am := MeshInstance3D.new(); var ab := BoxMesh.new(); ab.size = Vector3(0.035, 0.03, 0.02); am.mesh = ab; am.material_override = amulet
+		var ang := k * 2.1
+		am.position = wrist + d * (0.7 + k * 0.08) + (side * cos(ang) + side.cross(up) * sin(ang)) * 0.066
+		parent.add_child(am)
+
+## Dark-skinned arms in batakari sleeves gripping each weapon.
 func _hands() -> void:
-	skin.albedo_color = Color(0.17, 0.1, 0.07); skin.roughness = 0.55
-	sleeve.albedo_color = Color(0.22, 0.14, 0.08); sleeve.roughness = 0.95
-	var amulet := StandardMaterial3D.new(); amulet.albedo_color = Color(0.5, 0.33, 0.16)
+	skin.albedo_color = Color(0.2, 0.12, 0.08); skin.roughness = 0.45; skin.metallic_specular = 0.6
+	sleeve.albedo_color = Color(0.26, 0.17, 0.1); sleeve.roughness = 0.95
+	gold.albedo_color = Color(0.85, 0.62, 0.2); gold.metallic = 0.9; gold.roughness = 0.3
+	amulet.albedo_color = Color(0.42, 0.26, 0.12); amulet.roughness = 0.8
 	for id in guns:
 		var g: Node3D = guns[id]; var L: float = Weapons.GUNS[id].len
 		var arms := Node3D.new(); g.add_child(arms)
-		# right hand on the wrist of the stock, forearm back to the bottom-right
-		_hand(arms, Vector3(0.0, -0.05, -0.2), Vector3(0.2, 0, 0))
-		_limb(arms, Vector3(0.01, -0.07, -0.16), Vector3(0.09, -0.2, 0.18), 0.04, skin)
-		_limb(arms, Vector3(0.07, -0.17, 0.08), Vector3(0.12, -0.26, 0.32), 0.058, sleeve)
-		# left hand under the fore-stock, forearm out to the bottom-left
+		# right hand round the wrist of the stock, trigger finger forward
+		_grip(arms, Vector3(0.0, -0.045, -0.2), Vector3(0, 0, -1), Vector3(0.6, -0.2, 0.0))
+		_forearm(arms, Vector3(0.035, -0.07, -0.15), Vector3(0.12, -0.24, 0.22))
+		# left hand cradling the fore-stock
 		var lz := -L * 0.5
-		_hand(arms, Vector3(0.0, -0.06, lz), Vector3(0.1, 0, 0.4))
-		_limb(arms, Vector3(-0.02, -0.08, lz + 0.03), Vector3(-0.2, -0.22, lz + 0.42), 0.04, skin)
-		_limb(arms, Vector3(-0.15, -0.19, lz + 0.32), Vector3(-0.27, -0.29, lz + 0.62), 0.058, sleeve)
-		for k in 2:
-			var am := MeshInstance3D.new(); var ab := BoxMesh.new(); ab.size = Vector3(0.05, 0.04, 0.03); am.mesh = ab; am.material_override = amulet
-			am.position = Vector3(-0.21 + k * 0.03, -0.23, lz + 0.45 + k * 0.06); arms.add_child(am)
+		_grip(arms, Vector3(0.0, -0.05, lz), Vector3(0, 0, -1), Vector3(-0.3, -1.0, 0.0))
+		_forearm(arms, Vector3(-0.035, -0.09, lz + 0.05), Vector3(-0.22, -0.28, lz + 0.45))
 	for id in blades:
 		var b: Node3D = blades[id]
 		var arm := Node3D.new(); b.add_child(arm)
-		_hand(arm, Vector3(0, -0.01, 0.02), Vector3.ZERO)
-		_limb(arm, Vector3(0.01, -0.03, 0.06), Vector3(0.06, -0.12, 0.38), 0.04, skin)
-		_limb(arm, Vector3(0.05, -0.1, 0.3), Vector3(0.09, -0.17, 0.6), 0.058, sleeve)
+		_grip(arm, Vector3(0, -0.005, 0.03), Vector3(0, 0, -1), Vector3(1, 0, 0))
+		_forearm(arm, Vector3(0.02, -0.03, 0.08), Vector3(0.07, -0.13, 0.42))
 
 func _equip() -> void:
 	for g in guns.values(): g.visible = false
@@ -129,7 +166,7 @@ func _physics_process(dt: float) -> void:
 		_look(Hud.look_delta * 0.006 * Settings.mouse_sens); Hud.look_delta = Vector2.ZERO
 	if Input.is_action_just_pressed("crouch"): crouched = not crouched
 	if Input.is_action_just_pressed("swap_gun") and not reloading:
-		gun_i = (gun_i + 1) % Weapons.ORDER_GUNS.size(); loaded = true; _equip()
+		ammo_of[gun_id()] = ammo; gun_i = (gun_i + 1) % Weapons.ORDER_GUNS.size(); ammo = ammo_of.get(gun_id(), int(gun_stats().mag)); loaded = ammo > 0; _equip()
 		Hud.msg(gun_stats().name)
 	if Input.is_action_just_pressed("swap_blade"):
 		blade_i = (blade_i + 1) % Weapons.ORDER_BLADES.size(); _equip(); Hud.msg(blade_stats().name)
@@ -150,6 +187,13 @@ func _physics_process(dt: float) -> void:
 		if crouched: crouched = false
 		else: velocity.y = 6
 	move_and_slide()
+	# climb assist: never get wedged on a steep bank or terrain seam
+	if inp.length() > 0.2 and is_on_wall() and get_wall_normal().y > -0.2 and Vector2(get_real_velocity().x, get_real_velocity().z).length() < 1.0:
+		velocity.y = max(velocity.y, 3.2)
+	# wedged between two slopes (not on floor but not falling): pop out
+	if not is_on_floor() and abs(get_real_velocity().y) < 0.15 and inp.length() > 0.2: wedge_t += dt
+	else: wedge_t = 0.0
+	if wedge_t > 0.35: velocity.y = 4.5; wedge_t = 0.0
 	var moving := Vector2(velocity.x, velocity.z).length()
 	bob += dt * moving * 1.6
 	step_t -= dt * moving
@@ -174,14 +218,14 @@ func _physics_process(dt: float) -> void:
 	if reloading:
 		reload_t -= dt
 		grot = Vector3(0.9, 0.5, -0.4)
-		if reload_t <= 0: reloading = false; loaded = true
+		if reload_t <= 0: reloading = false; ammo = int(gun_stats().mag); loaded = true
 	gun.rotation = gun.rotation.lerp(grot, 8 * dt)
 	# red marker when the barrel is on an enemy
 	var q := PhysicsRayQueryParameters3D.create(cam.global_position, cam.global_position - cam.global_basis.z * float(gun_stats().range))
 	q.exclude = [get_rid()]
 	var h := get_world_3d().direct_space_state.intersect_ray(q)
 	aim_enemy = h and h.collider.is_in_group("enemy")
-	slash_cd -= dt
+	slash_cd -= dt; rof_t -= dt
 	if Input.is_action_just_pressed("fire"): _fire()
 	if Input.is_action_just_pressed("reload"): _reload()
 	if Input.is_action_just_pressed("slash"): _slash()
@@ -202,10 +246,10 @@ const PART_MULT := {"forehead": 4.0, "face": 3.0, "neck": 2.2, "chest": 1.0, "st
 const PART_PTS := {"forehead": 150, "face": 130, "neck": 120, "chest": 100, "stomach": 80, "left arm": 50, "right arm": 50, "thigh": 60, "knee": 60}
 
 func _fire() -> void:
-	if not loaded or reloading:
-		if not reloading: _reload()
-		return
-	loaded = false
+	if reloading or rof_t > 0.0: return
+	if ammo <= 0: _reload(); return
+	ammo -= 1; loaded = ammo > 0
+	rof_t = float(gun_stats().rof)
 	var st := gun_stats()
 	var muzzle: Vector3 = gun.global_position + (-cam.global_basis.z) * float(st.len) * 0.6
 	Fx.smoke(get_parent(), muzzle, 1.6 if st.pellets > 1 else 1.3)
@@ -240,7 +284,7 @@ func _fire() -> void:
 		var pts: int = PART_PTS[part] + (50 if not was_alerted else 0)
 		Main.inst.score_hit(e, "You shot the %s in the %s" % [Main.inst.enemy_name(e), part], pts if killed else pts / 3, killed, part == "forehead" or part == "face")
 		Hud.hit()
-	_reload()
+	if ammo <= 0: _reload()
 
 ## Gentle aim assist (stronger on pad / touch): bends the shot onto an enemy close to the crosshair.
 func _assist(dirv: Vector3, rng: float) -> Vector3:
@@ -261,7 +305,7 @@ func _assist(dirv: Vector3, rng: float) -> Vector3:
 	return best
 
 func _reload() -> void:
-	if loaded or reloading: return
+	if ammo >= int(gun_stats().mag) or reloading: return
 	reloading = true; reload_t = float(gun_stats().reload)
 	Audio.play("reload", null, -6)
 
@@ -291,6 +335,7 @@ func _slash() -> void:
 			Main.inst.score_hit(e, txt, (200 if silent else 120) if killed else 40, killed, false)
 
 var regen_wait := 0.0
+var wedge_t := 0.0
 func _process(dt: float) -> void:
 	regen_wait -= dt
 	if regen_wait <= 0.0 and hp < 100.0 and hp > 0.0: hp = min(100.0, hp + (12.0 if Game.difficulty == 0 else 7.0) * dt)

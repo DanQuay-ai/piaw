@@ -66,8 +66,8 @@ func _init() -> void:
 	layer = 5
 	_build_hud(); _build_touch()
 	menus = Menus.new(self); root.add_child(menus); menus.build()
-	menus.start_mission.connect(func(_id): play_pressed.emit())
-	menus.restart.connect(func(): restart_pressed.emit())
+	menus.start_mission.connect(_on_pick_mission)
+	menus.restart.connect(func(): Main.autostart = true; restart_pressed.emit())
 	menus.resume.connect(func(): set_paused(false))
 	Input.joy_connection_changed.connect(_on_joy)
 
@@ -269,7 +269,7 @@ func _draw_bigmap() -> void:
 	bigmap.draw_rect(rect.grow(4), Color(GOLD.r, GOLD.g, GOLD.b, 0.8))
 	bigmap.draw_texture_rect(Main.inst.map_tex, rect, false)
 	_draw_markers(bigmap, rect, 1.6)
-	bigmap.draw_string(f_title, rect.position + Vector2(0, -14), "MAP  ·  NSAMANKOW", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, IVORY)
+	bigmap.draw_string(f_title, rect.position + Vector2(0, -14), "MAP  ·  " + (Main.inst.mdef.title if Main.inst else ""), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, IVORY)
 	bigmap.draw_string(f_ui_b, rect.position + Vector2(0, rect.size.y + 26), "YOU = white arrow    OBJECTIVE = gold diamond    SOLDIERS = red dots    [M / touchpad] close", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.75))
 
 func _draw_gorilla() -> void:
@@ -285,6 +285,11 @@ func _draw_gorilla() -> void:
 	gorilla_meter.draw_string(f, Vector2(46, 26), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, GOLD if ready else Color(1, 1, 1, 0.7))
 
 # ---------------------------------------------------------------- menus
+func _on_pick_mission(id: String) -> void:
+	if id == Main.mission_id: play_pressed.emit(); return
+	Main.mission_id = id; Main.autostart = true
+	get_tree().paused = false; get_tree().reload_current_scene()
+
 func show_game() -> void:
 	menus.show_screen(""); hud_box.visible = true
 	touch.visible = touch_mode
@@ -350,8 +355,8 @@ func _process(dt: float) -> void:
 		hp_num.add_theme_color_override("font_color", RED if p.hp < 35 else IVORY)
 		weapon_l.text = p.gun_stats().name
 		blade_l.text = p.blade_stats().name + ("   ·   CROUCHED" if p.crouched else "")
-		ammo_l.text = "LOADED" if p.loaded else "EMPTY"
-		reload_bar.value = 100.0 if p.loaded else p.reload_progress() * 100.0
+		ammo_l.text = "%d / %d" % [p.ammo, int(p.gun_stats().mag)] if not p.reloading else "RELOADING"
+		reload_bar.value = p.reload_progress() * 100.0 if p.reloading else float(p.ammo) / float(p.gun_stats().mag) * 100.0
 		var s: float = p.stealth()
 		stealth_l.text = "HIDDEN" if s < 0.5 else ("LOW PROFILE" if s < 0.9 else "EXPOSED")
 		compass.queue_redraw(); gorilla_meter.queue_redraw(); cross.queue_redraw()

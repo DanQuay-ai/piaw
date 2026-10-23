@@ -17,6 +17,10 @@ const LINES := {
 	"off_where": [["en_officer_where.mp3"], "Where the devil are they?", ""],
 	"off_bayonet": [["en_officer_bayonet.mp3"], "Fix bayonets! Charge!", ""],
 	"off_gorilla": [["en_officer_gorilla.mp3"], "Good God, what is that beast?!", ""],
+	"narr_asameni": [["narr_asameni.mp3"], "1693. Osu. The Danes of Christiansborg buy their gunpowder from Akwamu traders. Today, Asameni brings them more than powder.", ""],
+	"narr_canoe": [["narr_canoe.mp3"], "1711. Pokesu. The Brandenburgers left, the Dutch came to collect. John Canoe kept the keys, and the cannons.", ""],
+	"narr_amoaful": [["narr_amoaful.mp3"], "1874. Amoaful. Wolseley marches on Kumasi with rifles and rockets. The bush still belongs to the Asante.", ""],
+	"narr_golden_stool": [["narr_golden_stool.mp3"], "1900. The governor demanded the Golden Stool, to sit on it. Yaa Asantewaa answered with a siege.", ""],
 	"narr_intro": [["narr_intro.mp3"], "1824. Nsamankow. Sir Charles MacCarthy marches into the forest, certain the Asante will run. The forest has other plans.", ""],
 }
 

@@ -7,10 +7,23 @@ const Z0 := -150.0; const Z1 := 120.0
 const STEP := 2.0
 const M := 70.0  # scenery margin beyond the playable boundary (mirrored terrain)
 const WATER := -0.45
-const FORT := Vector2(0, -110)
-const VILLAGE := Vector2(52, -40)
-const LAKE := Vector2(-62, 30)
-const SPAWN := Vector2(0, 95)
+static var FORT := Vector2(0, -110)
+static var VILLAGE := Vector2(52, -40)
+static var LAKE := Vector2(-62, 30)
+static var SPAWN := Vector2(0, 95)
+static var COAST := false        # sea along the north edge
+static var SEA_Z := -105.0       # shoreline (z below this is sea)
+static var FORT_HILL := 15.0     # hill height under the fort (0 = beach castle)
+static var HAS_VILLAGE := true
+static var HAS_FORT := true
+
+## Apply a mission's map layout before build().
+static func configure(cfg: Dictionary) -> void:
+	FORT = cfg.get("fort", Vector2(0, -110)); VILLAGE = cfg.get("village", Vector2(52, -40))
+	SPAWN = cfg.get("spawn", Vector2(0, 95)); COAST = cfg.get("coast", false)
+	SEA_Z = cfg.get("sea_z", -105.0); FORT_HILL = cfg.get("fort_hill", 15.0)
+	HAS_VILLAGE = cfg.get("has_village", true); HAS_FORT = cfg.get("has_fort", true)
+	LAKE = cfg.get("lake", Vector2(-62, 30))
 
 static var inst: World
 var n1 := FastNoiseLite.new()
@@ -50,39 +63,47 @@ func height(x: float, z: float) -> float:
 	var h := _base(x, z)
 	var p := Vector2(x, z)
 	# fort hill with flat top
-	var df := p.distance_to(FORT)
-	h += 15.0 * exp(-pow(df / 44.0, 2.0))
+	var df := p.distance_to(FORT) if HAS_FORT else 9999.0
+	h += FORT_HILL * exp(-pow(df / 44.0, 2.0))
 	# flattened neighbourhood plateau
-	h = lerp(h, village_h, smoothstep(36.0, 24.0, p.distance_to(VILLAGE)))
+	if HAS_VILLAGE: h = lerp(h, village_h, smoothstep(36.0, 24.0, p.distance_to(VILLAGE)))
 	# road: smooth and keep dry
 	var dp: float = abs(x - path_x(z))
 	h = lerp(h, max(h * 0.7 + 0.5, WATER + 0.9), smoothstep(6.0, 2.0, dp) * 0.8 * smoothstep(28.0, 50.0, df))
 	# river channel (wadeable)
 	var dr: float = abs(z - river_z(x))
-	h = min(h, lerp(-1.15, min(h, 3.0 + dr * 0.35), smoothstep(2.0, 16.0, dr)))  # gentle, walkable banks
+	h = min(h, lerp(-0.95, min(h, 2.0 + dr * 0.25), smoothstep(3.5, 22.0, dr)))  # gentle, walkable banks
 	if dp < 7.0 and dr < 12.0: h = max(h, -0.7)  # ford where the road crosses
 	# lake
 	var dl := p.distance_to(LAKE)
 	h = min(h, lerp(-3.5, h, smoothstep(13.0, 26.0, dl)))
 	# flat fort summit, blended last so nothing cuts into it
 	h = lerp(h, fort_top, smoothstep(34.0, 22.0, df))
+	# the sea: beach then deep water past the shoreline
+	if COAST:
+		var into: float = SEA_Z - z
+		h = lerp(h, min(h, 0.6 - into * 0.05), smoothstep(-28.0, -6.0, into))
+		h = lerp(h, -6.0, smoothstep(0.0, 22.0, into))
 	# keep spawn dry and gentle
-	h = lerp(h, 2.0, smoothstep(14.0, 4.0, p.distance_to(SPAWN)))
+	if not HAS_FORT or SPAWN.distance_to(FORT) > 40.0: h = lerp(h, 2.0, smoothstep(14.0, 4.0, p.distance_to(SPAWN)))
 	return h
 
 func ground_tint(x: float, z: float, h: float, slope: float) -> Color:
 	## r = grass amount, g = wetness
 	var grass := clampf(0.8 + n3.get_noise_2d(x, z) * 0.6, 0.0, 1.0)
 	grass *= smoothstep(1.5, 4.5, abs(x - path_x(z)))
-	grass *= smoothstep(30.0, 38.0, Vector2(x, z).distance_to(VILLAGE))
-	grass *= smoothstep(22.0, 30.0, Vector2(x, z).distance_to(FORT))
+	if HAS_VILLAGE: grass *= smoothstep(30.0, 38.0, Vector2(x, z).distance_to(VILLAGE))
+	if HAS_FORT: grass *= smoothstep(22.0, 30.0, Vector2(x, z).distance_to(FORT))
 	grass *= 1.0 - smoothstep(0.5, 1.2, slope)
 	var wet := smoothstep(WATER + 1.4, WATER, h)
-	return Color(grass, wet, 0)
+	var sand := 0.0
+	if COAST: sand = smoothstep(SEA_Z + 30.0, SEA_Z + 12.0, z)
+	if COAST: grass *= 1.0 - sand
+	return Color(grass, wet * (1.0 - sand), sand)
 
 func build() -> void:
 	quality = 0 if (OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")) else 1
-	fort_top = _base(FORT.x, FORT.y) + 15.0
+	fort_top = max(_base(FORT.x, FORT.y), 1.2) + FORT_HILL
 	village_h = max(_base(VILLAGE.x, VILLAGE.y), 1.5)
 	Props.init_materials(); Buildings.init_materials()
 	colliders = StaticBody3D.new(); add_child(colliders)
@@ -90,7 +111,7 @@ func build() -> void:
 	_terrain()
 	_water()
 	_forest()
-	_neighbourhood()
+	if HAS_VILLAGE: _neighbourhood()
 
 # ---------------------------------------------------------------- sky & light
 func _environment() -> void:
@@ -128,6 +149,8 @@ void fragment(){
   float k = smoothstep(0.35, 0.65, COLOR.r + (d - 0.5) * 0.5);
   vec3 col = mix(s, g, k) * (0.85 + 0.3 * far) * (0.92 + 0.16 * d);
   col *= mix(1.0, 0.55, COLOR.g);   // damp banks
+  vec3 sandc = vec3(0.78, 0.7, 0.52) * (0.9 + 0.2 * d);
+  col = mix(col, sandc, COLOR.b);
   ALBEDO = col;
   ROUGHNESS = mix(0.95, 0.5, COLOR.g);
 }
@@ -208,7 +231,8 @@ func ok_spot(x: float, z: float, clear := 4.0) -> bool:
 	if h < WATER + 0.4: return false
 	if abs(x - path_x(z)) < clear: return false
 	var p := Vector2(x, z)
-	if p.distance_to(VILLAGE) < 30.0 or p.distance_to(FORT) < 30.0 or p.distance_to(SPAWN) < 7.0: return false
+	if (HAS_VILLAGE and p.distance_to(VILLAGE) < 30.0) or (HAS_FORT and p.distance_to(FORT) < 32.0) or p.distance_to(SPAWN) < 7.0: return false
+	if COAST and z < SEA_Z + 14.0: return false
 	return true
 
 func _scatter(mesh: Mesh, count: int, smin: float, smax: float, tint_var: float, clear: float, collide_r: float, hide := false, grassy := false, ext := false) -> void:
@@ -285,6 +309,7 @@ func map_image(px := 256) -> Image:
 			if foliage.has(Vector2i(int(floor(x / 2.0)), int(floor(z / 2.0)))): c = c.darkened(0.15)
 			if abs(x - path_x(z)) < 2.5: c = Color(0.62, 0.3, 0.16)
 			c = c.lightened(clampf(h / 30.0, 0.0, 0.3))
+			if COAST and z < SEA_Z + 22.0: c = Color(0.75, 0.67, 0.5)
 			if h < WATER: c = Color(0.16, 0.3, 0.36)
 			img.set_pixel(i, j, c)
 	return img

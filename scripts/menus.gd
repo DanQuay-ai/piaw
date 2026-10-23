@@ -17,6 +17,7 @@ var pad_label: Label
 var waiting_bind := ""      # action currently being remapped
 var bind_buttons := {}
 var stick_held := false
+static var seen_splash := false
 var pad_diag: Label
 
 func _process(_dt: float) -> void:
@@ -25,10 +26,10 @@ func _process(_dt: float) -> void:
 
 const MISSIONS := [
 	{"id": "nsamankow", "title": "NSAMANKOW", "year": "1824", "desc": "Ambush MacCarthy's column in the forest, then storm the hill fort.", "open": true},
-	{"id": "asameni", "title": "THE KEYS OF OSU", "year": "1693", "desc": "Asameni and the Akwamu take Christiansborg Castle from the Danes. Fight inside the fort.", "open": false},
-	{"id": "canoe", "title": "JOHN CANOE'S FORT", "year": "1711", "desc": "Hold Groß Friedrichsburg at Pokesu against the Dutch, cannon by cannon.", "open": false},
-	{"id": "amoaful", "title": "AMOAFUL", "year": "1874", "desc": "Wolseley marches on Kumasi. Bleed his column in the bush.", "open": false},
-	{"id": "golden_stool", "title": "THE GOLDEN STOOL", "year": "1900", "desc": "Yaa Asantewaa besieges the Kumasi fort.", "open": false},
+	{"id": "asameni", "title": "THE KEYS OF OSU", "year": "1693", "desc": "Pose as traders, slip into Christiansborg Castle and take it from the Danes.", "open": true},
+	{"id": "canoe", "title": "JOHN CANOE'S FORT", "year": "1711", "desc": "Hold Groß Friedrichsburg against three Dutch landings on the beach.", "open": true},
+	{"id": "amoaful", "title": "AMOAFUL", "year": "1874", "desc": "Bleed Wolseley's column in the bush, then defend the town.", "open": true},
+	{"id": "golden_stool", "title": "THE GOLDEN STOOL", "year": "1900", "desc": "Yaa Asantewaa's siege: clear the stockade, stop the relief column.", "open": true},
 ]
 
 func _init(h: Hud) -> void:
@@ -41,7 +42,7 @@ func build() -> void:
 	overlay = ColorRect.new(); overlay.set_anchors_preset(Control.PRESET_FULL_RECT); overlay.color = Color(0.03, 0.02, 0.01, 0.78)
 	add_child(overlay)
 	_splash(); _main(); _missions(); _options(); _controls(); _pause(); _end()
-	show_screen("splash")
+	show_screen("main" if seen_splash else "splash"); seen_splash = true
 
 # ---------------------------------------------------------------- helpers
 func _panel(name: String, width := 420.0) -> VBoxContainer:

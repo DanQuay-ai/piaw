@@ -7,6 +7,7 @@ shader_type spatial;
 render_mode cull_disabled;
 uniform float half_h = 1.5;
 uniform float dado = 1.1;
+uniform float tint = 1.0;
 varying vec3 lp;
 varying vec3 ln;
 float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
@@ -33,7 +34,7 @@ void fragment(){
   // fine crack network
   float cr = smoothstep(0.03, 0.0, abs(vn(uv*6.0) - 0.5));
   col *= 1.0 - cr * 0.25;
-  ALBEDO = col;
+  ALBEDO = col * tint;
   ROUGHNESS = y < dado ? 0.55 : 0.95;
 }
 """
