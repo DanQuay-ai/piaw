@@ -41,3 +41,13 @@ static func impact(parent: Node, pos: Vector3, normal: Vector3, flesh: bool) -> 
 	p.color_ramp = g
 	parent.add_child(p); p.global_position = pos; p.emitting = true
 	p.get_tree().create_timer(1.2).timeout.connect(p.queue_free)
+
+## Short flame burst at the barrel tip.
+static func muzzle(parent: Node, pos: Vector3, dir: Vector3) -> void:
+	var m := StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(1.0, 0.75, 0.35, 0.9); m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	var mi := MeshInstance3D.new(); var q := QuadMesh.new(); q.size = Vector2(0.35, 0.35); mi.mesh = q; mi.material_override = m
+	parent.add_child(mi); mi.global_position = pos + dir * 0.15
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.get_tree().create_timer(0.05).timeout.connect(mi.queue_free)

@@ -166,7 +166,8 @@ func _fire() -> void:
 	var st := gun_stats()
 	var muzzle: Vector3 = gun.global_position + (-cam.global_basis.z) * float(st.len) * 0.6
 	Fx.smoke(get_parent(), muzzle, 1.6 if st.pellets > 1 else 1.3)
-	Fx.flash(get_parent(), muzzle)
+	Fx.flash(get_parent(), muzzle); Fx.muzzle(get_parent(), muzzle, -cam.global_basis.z)
+	Hud.shot_flash()
 	Audio.play("musket_shot", null, -2)
 	Main.inst.noise_at(global_position, 45.0)
 	cam.rotation.x += 0.07 if st.pellets == 1 else 0.11

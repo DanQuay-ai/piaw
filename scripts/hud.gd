@@ -41,6 +41,8 @@ var sub_tr: Label
 var sub_t := 0.0
 var feed: VBoxContainer
 var menus: Menus
+var flash_rect: ColorRect
+var flash_t := 0.0
 var hp_plate: PanelContainer
 var wp_plate: PanelContainer
 var _layout_touch := false
@@ -118,6 +120,8 @@ func _build_hud() -> void:
 	root.add_child(hud_box); hud_box.visible = false
 	vignette = ColorRect.new(); vignette.set_anchors_preset(Control.PRESET_FULL_RECT); vignette.color = Color(0.6, 0, 0, 0)
 	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE; hud_box.add_child(vignette)
+	flash_rect = ColorRect.new(); flash_rect.set_anchors_preset(Control.PRESET_FULL_RECT); flash_rect.color = Color(1, 0.8, 0.5, 0)
+	flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE; hud_box.add_child(flash_rect)
 	# objective (top-left)
 	var card := PanelContainer.new(); card.custom_minimum_size = Vector2(360, 0)
 	_anchor(card, Control.PRESET_TOP_LEFT, Vector2(22, 22))
@@ -306,6 +310,8 @@ static func objective(s: String) -> void:
 	if inst: inst.obj_text.text = s
 static func hit() -> void:
 	if inst: inst.hitmark.text = "X"; inst.hit_t = 0.25
+static func shot_flash() -> void:
+	if inst and Settings.flashes: inst.flash_t = 1.0
 static func damage() -> void:
 	if inst: inst.vig_t = 0.6
 static func subtitle(line: String, translation: String) -> void:
@@ -349,6 +355,9 @@ func _process(dt: float) -> void:
 		var s: float = p.stealth()
 		stealth_l.text = "HIDDEN" if s < 0.5 else ("LOW PROFILE" if s < 0.9 else "EXPOSED")
 		compass.queue_redraw(); gorilla_meter.queue_redraw(); cross.queue_redraw()
+	if Input.is_action_just_pressed("mute"):
+		Settings.toggle_mute(); msg("SOUND OFF" if Settings.muted else "SOUND ON")
+	flash_t = max(flash_t - dt * 9.0, 0.0); flash_rect.color.a = flash_t * 0.14
 	if hud_box.visible and menus.current == "":
 		if Input.is_action_just_pressed("pause"): set_paused(true)
 		elif not touch_mode and not get_tree().paused and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and OS.has_feature("web"): set_paused(true)
@@ -404,6 +413,7 @@ func _layout_buttons() -> void:
 		[R + Vector2(-360, -310) * k, 48.0 * k, "whistle", "CALL"],
 		[Vector2(s.x - 300 * k, 60 * k), 36.0 * k, "map", "MAP"],
 		[Vector2(s.x - 385 * k, 60 * k), 36.0 * k, "pause", "II"],
+		[Vector2(s.x - 470 * k, 60 * k), 36.0 * k, "mute", "MUTE"],
 	]
 	joy_r = 105.0 * k
 	joy_home = Vector2(40, s.y - 40) + Vector2(joy_r, -joy_r) + Vector2(20, -20) * k
@@ -435,6 +445,7 @@ func _touch_input(e: InputEvent) -> void:
 					else: Input.action_press("aim")
 				elif b[2] == "pause": set_paused(true)
 				elif b[2] == "map": bigmap.visible = not bigmap.visible
+				elif b[2] == "mute": Settings.toggle_mute()
 				else: Input.action_press(b[2]); _release_later(b[2])
 			elif e.position.x < s.x * 0.42 and joy_idx < 0:
 				joy_idx = e.index; joy_start = e.position
@@ -467,7 +478,7 @@ func _draw_touch() -> void:
 	touch.draw_arc(base, joy_r, 0, TAU, 48, Color(GOLD.r, GOLD.g, GOLD.b, 0.6), 3.0, true)
 	touch.draw_circle(base + joy_vec * joy_r * 0.85, joy_r * 0.42, Color(1, 1, 1, 0.4))
 	for b in buttons:
-		var on: bool = Input.is_action_pressed(b[2]) or (b[2] == "map" and bigmap.visible)
+		var on: bool = Input.is_action_pressed(b[2]) or (b[2] == "map" and bigmap.visible) or (b[2] == "mute" and Settings.muted)
 		var ready: bool = b[2] == "whistle" and Main.inst and Main.inst.gorilla_charge >= 1.0
 		touch.draw_circle(b[0], b[1], Color(GOLD.r, GOLD.g, GOLD.b, 0.85) if on or ready else Color(0.05, 0.04, 0.03, 0.5))
 		touch.draw_arc(b[0], b[1], 0, TAU, 40, Color(GOLD.r, GOLD.g, GOLD.b, 0.8), 3.0, true)

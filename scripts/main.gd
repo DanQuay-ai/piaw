@@ -26,6 +26,7 @@ func _ready() -> void:
 	InputSetup.setup()
 	Settings.load_cfg()
 	Audio.init(self)
+	add_child(PadBridge.new())
 	Audio.play_music("menu")
 	var grade := CanvasLayer.new(); grade.layer = 1; grade.set_script(load("res://scripts/grading.gd")); add_child(grade)
 	hud = Hud.new(); add_child(hud)

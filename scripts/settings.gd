@@ -12,12 +12,14 @@ static var quality := -1        # -1 auto, 0 low, 1 high
 static var grading := true
 static var shake := 1.0
 static var touch_scale := 1.0
+static var muted := false
+static var flashes := true
 static var pad_binds := {}      # action -> {"type": "button"/"axis", "index": int, "dir": float}
 
 static func load_cfg() -> void:
 	var c := ConfigFile.new()
 	if c.load(PATH) != OK: return
-	for k in ["master", "music", "sfx", "voice", "mouse_sens", "pad_sens", "invert_y", "quality", "grading", "shake", "touch_scale", "pad_binds"]:
+	for k in ["master", "music", "sfx", "voice", "mouse_sens", "pad_sens", "invert_y", "quality", "grading", "shake", "touch_scale", "muted", "flashes", "pad_binds"]:
 		if c.has_section_key("s", k): set_value(k, c.get_value("s", k))
 
 static func set_value(k: String, v) -> void:
@@ -33,11 +35,13 @@ static func set_value(k: String, v) -> void:
 		"grading": grading = v
 		"shake": shake = v
 		"touch_scale": touch_scale = v
+		"muted": muted = v
+		"flashes": flashes = v
 		"pad_binds": pad_binds = v
 
 static func save_cfg() -> void:
 	var c := ConfigFile.new()
-	for k in ["master", "music", "sfx", "voice", "mouse_sens", "pad_sens", "invert_y", "quality", "grading", "shake", "touch_scale", "pad_binds"]:
+	for k in ["master", "music", "sfx", "voice", "mouse_sens", "pad_sens", "invert_y", "quality", "grading", "shake", "touch_scale", "muted", "flashes", "pad_binds"]:
 		c.set_value("s", k, value(k))
 	c.save(PATH)
 	apply()
@@ -55,6 +59,8 @@ static func value(k: String):
 		"grading": return grading
 		"shake": return shake
 		"touch_scale": return touch_scale
+		"muted": return muted
+		"flashes": return flashes
 		"pad_binds": return pad_binds
 	return null
 
@@ -69,7 +75,11 @@ static func apply() -> void:
 	for pair in [["Master", master], ["Music", music], ["SFX", sfx], ["Voice", voice]]:
 		var i := AudioServer.get_bus_index(pair[0])
 		AudioServer.set_bus_volume_db(i, linear_to_db(max(pair[1], 0.0001)))
+	AudioServer.set_bus_mute(0, muted)
 	for a in pad_binds: bind_pad(a, pad_binds[a], false)
+
+static func toggle_mute() -> void:
+	muted = not muted; save_cfg()
 
 ## Replace the pad events of an action with a captured button/axis.
 static func bind_pad(action: String, b: Dictionary, store := true) -> void:

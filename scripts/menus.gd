@@ -17,6 +17,11 @@ var pad_label: Label
 var waiting_bind := ""      # action currently being remapped
 var bind_buttons := {}
 var stick_held := false
+var pad_diag: Label
+
+func _process(_dt: float) -> void:
+	if pad_diag and current == "controls":
+		pad_diag.text = "LIVE CONTROLLER CHECK:  " + (PadBridge.info if PadBridge.info != "" else "(desktop build)")
 
 const MISSIONS := [
 	{"id": "nsamankow", "title": "NSAMANKOW", "year": "1824", "desc": "Ambush MacCarthy's column in the forest, then storm the hill fort.", "open": true},
@@ -105,6 +110,7 @@ func _main() -> void:
 	_btn(vb, "CAMPAIGN", func(): show_screen("missions"))
 	_btn(vb, "OPTIONS", func(): back_to = "main"; show_screen("options"))
 	_btn(vb, "CONTROLS", func(): back_to = "main"; show_screen("controls"))
+	_toggle(vb, "SOUND MUTED", "muted")
 	pad_label = hud._label("", 14, Hud.GOLD, hud.f_ui_b); pad_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; vb.add_child(pad_label)
 	update_pad_label()
 
@@ -137,6 +143,8 @@ func _options() -> void:
 	vb.add_child(hud._label("GAMEPLAY & DISPLAY", 14, Hud.GOLD, hud.f_title))
 	_slider(vb, "Camera shake", "shake", 0.0, 1.5)
 	_toggle(vb, "Colour grading", "grading")
+	_toggle(vb, "Shot flashes", "flashes")
+	_toggle(vb, "Sound muted", "muted")
 	_btn(vb, "BACK", func(): show_screen(back_to))
 
 func _controls() -> void:
@@ -146,6 +154,7 @@ func _controls() -> void:
 	_slider(vb, "Stick look", "pad_sens", 0.2, 3.0)
 	_toggle(vb, "Invert look Y", "invert_y")
 	_slider(vb, "Touch button size", "touch_scale", 0.7, 1.6)
+	pad_diag = hud._label("", 14, Hud.GOLD, hud.f_ui_b); vb.add_child(pad_diag)
 	vb.add_child(hud._label("CONTROLLER MAPPING  (pick an action, then press the button or trigger)", 14, Hud.GOLD, hud.f_ui_b))
 	var grid := GridContainer.new(); grid.columns = 2; grid.add_theme_constant_override("h_separation", 10); grid.add_theme_constant_override("v_separation", 8); vb.add_child(grid)
 	for a in [["fire", "FIRE (R2)"], ["aim", "AIM (L2)"], ["slash", "AFENA (R1)"], ["sprint", "SPRINT (L3)"], ["whistle", "WHISTLE (TRIANGLE)"], ["map", "MAP (TOUCHPAD)"]]:
@@ -159,6 +168,7 @@ func _pause() -> void:
 	var vb := _panel("pause")
 	_title(vb, "PAUSED", 44)
 	_btn(vb, "RESUME", func(): resume.emit())
+	_toggle(vb, "SOUND MUTED", "muted")
 	_btn(vb, "OPTIONS", func(): back_to = "pause"; show_screen("options"))
 	_btn(vb, "CONTROLS", func(): back_to = "pause"; show_screen("controls"))
 	_btn(vb, "RESTART MISSION", func(): restart.emit())
