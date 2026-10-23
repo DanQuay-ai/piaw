@@ -1,7 +1,8 @@
 extends SceneTree
-## Dev tool: renders screenshots of key locations.  godot --path . -s tools/capture.gd
+## Dev tool: renders screenshots.  godot --path . -s tools/capture.gd
 var f := 0
 var shots := []
+var cur = null
 func _initialize() -> void:
 	change_scene_to_file("res://scenes/main.tscn")
 func _process(_dt: float) -> bool:
@@ -11,23 +12,21 @@ func _process(_dt: float) -> bool:
 		get_root().get_texture().get_image().save_png("/tmp/c_menu.png")
 		m.hud.show_game(); m._start_ambush(); m.player.hp = 99999; Game.difficulty = 0
 		var W = World.inst
+		var e0 = m.get_tree().get_nodes_in_group("enemy")[0]
 		shots = [
-			["spawn", m.player.position, 0.0, 0.0],
-			["road", Vector3(W.path_x(55), W.height(W.path_x(55), 55) + 1, 55), 0.2, -0.05],
-			["river", Vector3(10, W.height(10, 12) + 1, 12), 0.6, -0.1],
-			["village", Vector3(World.VILLAGE.x, W.village_h + 1, World.VILLAGE.y + 28), 0.0, 0.0],
-			["compound", Vector3(World.VILLAGE.x - 24, W.village_h + 1, World.VILLAGE.y - 6), 0.9, 0.0],
-			["lake", Vector3(-40, W.height(-40, 30) + 1, 30), 1.57, -0.1],
-			["fort", Vector3(0, W.height(0, -72) + 1, -72), 0.0, 0.1],
-			["fort_in", Vector3(0, W.fort_top + 1, World.FORT.y + 4), PI, -0.1],
-			["column", Vector3(W.path_x(52), W.height(W.path_x(52), 52) + 1, 52), 0.0, 0.0],
+			["slash", Vector3(W.path_x(70), W.height(W.path_x(70), 70) + 1, 70), 0.1, 0.0, {"slash": true}],
 		]
-	if f > 40 and shots.size() > 0 and f % 12 == 0:
+	if f > 40 and f % 14 == 0 and shots.size() > 0:
 		var s = shots[0]
 		m.player.position = s[1]; m.player.rotation.y = s[2]; m.player.cam.rotation.x = s[3]
-	if f > 40 and shots.size() > 0 and f % 12 == 11:
+		if s[4].has("gun"): m.player.gun_i = s[4].gun; m.player._equip()
+		if s[4].has("aim"): Input.action_press("aim")
+		else: Input.action_release("aim")
+		if s[4].has("slash"): m.player.gun.visible = false; m.player.blade.visible = true; m.player.blade.position = Vector3(0.25, -0.2, -0.2); m.player.blade.rotation = Vector3(0.3, 0.3, 0.5); m.player.set_physics_process(false)
+		if s[4].has("gorilla"): m.gorilla_charge = 1.0; m.whistle()
+	if f > 40 and f % 14 == (3 if shots.size() > 0 and shots[0][4].has("slash") else 13) and shots.size() > 0:
 		var s = shots.pop_front()
 		get_root().get_texture().get_image().save_png("/tmp/c_%s.png" % s[0])
-		print("shot ", s[0], " fps ", Engine.get_frames_per_second())
+		print("shot ", s[0])
 	if f > 40 and shots.is_empty(): return true
 	return false

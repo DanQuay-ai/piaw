@@ -89,14 +89,14 @@ func build() -> void:
 func _environment() -> void:
 	var we := WorldEnvironment.new(); var e := Environment.new()
 	var sky := Sky.new(); var sm := ProceduralSkyMaterial.new()
-	sm.sky_top_color = Color(0.42, 0.55, 0.68); sm.sky_horizon_color = Color(0.78, 0.76, 0.66)
+	sm.sky_top_color = Color(0.22, 0.42, 0.78); sm.sky_horizon_color = Color(0.68, 0.76, 0.8)
 	sm.ground_horizon_color = Color(0.5, 0.48, 0.4); sm.ground_bottom_color = Color(0.2, 0.2, 0.15)
 	sm.sun_angle_max = 20.0
 	sky.sky_material = sm
 	e.background_mode = Environment.BG_SKY; e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY; e.ambient_light_energy = 0.7
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC; e.tonemap_exposure = 1.05
-	e.fog_enabled = true; e.fog_light_color = Color(0.7, 0.72, 0.62); e.fog_density = 0.009
+	e.fog_enabled = true; e.fog_light_color = Color(0.55, 0.65, 0.6); e.fog_density = 0.011
 	e.fog_aerial_perspective = 0.4; e.fog_sky_affect = 0.3
 	we.environment = e; add_child(we)
 	var sun := DirectionalLight3D.new(); sun.rotation_degrees = Vector3(-38, 35, 0)
@@ -114,12 +114,12 @@ uniform sampler2D detail_tex : repeat_enable, filter_linear_mipmap;
 varying vec3 wp;
 void vertex(){ wp = VERTEX; }
 void fragment(){
-  vec3 g = texture(grass_tex, wp.xz * 0.11).rgb;
-  vec3 s = texture(soil_tex, wp.xz * 0.07).rgb;
+  vec3 g = texture(grass_tex, wp.xz * 0.06).rgb;
+  vec3 s = texture(soil_tex, wp.xz * 0.05).rgb;
   float d = texture(detail_tex, wp.xz * 0.5).r;
   float far = texture(detail_tex, wp.xz * 0.01).r;
   float k = smoothstep(0.35, 0.65, COLOR.r + (d - 0.5) * 0.5);
-  vec3 col = mix(s, g, k) * (0.8 + 0.4 * far) * (0.85 + 0.3 * d);
+  vec3 col = mix(s, g, k) * (0.85 + 0.3 * far) * (0.92 + 0.16 * d);
   col *= mix(1.0, 0.55, COLOR.g);   // damp banks
   ALBEDO = col;
   ROUGHNESS = mix(0.95, 0.5, COLOR.g);
@@ -151,8 +151,8 @@ func _terrain() -> void:
 	var mi := MeshInstance3D.new(); mi.mesh = st.commit()
 	var sh := Shader.new(); sh.code = GROUND_SHADER
 	var m := ShaderMaterial.new(); m.shader = sh
-	m.set_shader_parameter("grass_tex", Props.noise_tex(Color(0.15, 0.17, 0.07), Color(0.33, 0.32, 0.15), 0.08, 256))
-	m.set_shader_parameter("soil_tex", Props.noise_tex(Color(0.33, 0.14, 0.07), Color(0.56, 0.26, 0.13), 0.09, 256))
+	m.set_shader_parameter("grass_tex", load("res://assets/textures/ground_forest.png"))
+	m.set_shader_parameter("soil_tex", load("res://assets/textures/ground_laterite.png"))
 	m.set_shader_parameter("detail_tex", Props.noise_tex(Color(0, 0, 0), Color(1, 1, 1), 0.1, 128))
 	mi.material_override = m
 	add_child(mi)
@@ -184,7 +184,7 @@ func ok_spot(x: float, z: float, clear := 4.0) -> bool:
 	if p.distance_to(VILLAGE) < 30.0 or p.distance_to(FORT) < 30.0 or p.distance_to(SPAWN) < 7.0: return false
 	return true
 
-func _scatter(mesh: Mesh, count: int, smin: float, smax: float, tint_var: float, clear: float, collide_r: float, hide := false) -> void:
+func _scatter(mesh: Mesh, count: int, smin: float, smax: float, tint_var: float, clear: float, collide_r: float, hide := false, grassy := false) -> void:
 	var mm := MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.use_colors = true; mm.mesh = mesh
 	var xf := []; var cols := []
 	var tries := 0
@@ -192,6 +192,7 @@ func _scatter(mesh: Mesh, count: int, smin: float, smax: float, tint_var: float,
 		tries += 1
 		var x := rng.randf_range(X0 + 6, X1 - 6); var z := rng.randf_range(Z0 + 6, Z1 - 6)
 		if not ok_spot(x, z, clear): continue
+		if grassy and ground_tint(x, z, height(x, z), 0.0).r < 0.45: continue
 		var s := rng.randf_range(smin, smax)
 		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.85, 1.15), s))
 		var pos := Vector3(x, height(x, z) - 0.15, z)
@@ -202,7 +203,7 @@ func _scatter(mesh: Mesh, count: int, smin: float, smax: float, tint_var: float,
 			var cs := CollisionShape3D.new(); var c := CylinderShape3D.new(); c.radius = collide_r * s; c.height = 4.0
 			cs.shape = c; cs.position = pos + Vector3(0, 2, 0); colliders.add_child(cs)
 		if hide:
-			var r := int(ceil(1.4 * s / 2.0))
+			var r := int(round(1.0 * s / 2.0))
 			for dx in range(-r, r + 1):
 				for dz in range(-r, r + 1):
 					foliage[Vector2i(int(floor(x / 2.0)) + dx, int(floor(z / 2.0)) + dz)] = true
@@ -210,17 +211,20 @@ func _scatter(mesh: Mesh, count: int, smin: float, smax: float, tint_var: float,
 	for i in xf.size():
 		mm.set_instance_transform(i, xf[i]); mm.set_instance_color(i, cols[i])
 	var mmi := MultiMeshInstance3D.new(); mmi.multimesh = mm; add_child(mmi)
+	if grassy: mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 func _forest() -> void:
-	var q := 1.0 if quality > 0 else 0.55
-	_scatter(Props.ceiba(), int(45 * q), 0.8, 1.3, 0.1, 6.0, 0.9)
-	_scatter(Props.broadleaf(), int(280 * q), 0.75, 1.5, 0.18, 4.0, 0.4)
-	_scatter(Props.oil_palm(), int(70 * q), 0.8, 1.2, 0.12, 4.0, 0.35)
-	_scatter(Props.sapling(), int(150 * q), 0.7, 1.3, 0.2, 3.0, 0.0)
-	_scatter(Props.shrub(), int(160 * q), 0.7, 1.4, 0.2, 2.5, 0.0, true)
-	_scatter(Props.fern(), int(160 * q), 0.8, 1.5, 0.15, 2.0, 0.0, true)
-	_scatter(Props.elephant_grass(), int(140 * q), 0.8, 1.3, 0.1, 2.5, 0.0, true)
-	_scatter(Props.plantain(), int(50 * q), 0.8, 1.2, 0.1, 3.0, 0.0, true)
+	var q := 1.0 if quality > 0 else 0.5
+	_scatter(Props.ceiba(), int(55 * q), 0.8, 1.3, 0.1, 6.0, 0.9)
+	for sd in [3, 4, 7]: _scatter(Props.broadleaf(sd), int(110 * q), 0.8, 1.4, 0.15, 4.0, 0.4)
+	_scatter(Props.oil_palm(), int(80 * q), 0.8, 1.2, 0.12, 4.0, 0.35)
+	_scatter(Props.sapling(), int(160 * q), 0.7, 1.3, 0.2, 3.0, 0.0)
+	_scatter(Props.shrub(), int(220 * q), 0.7, 1.5, 0.2, 2.5, 0.0, true)
+	_scatter(Props.fern(), int(260 * q), 0.8, 1.6, 0.15, 2.0, 0.0, true)
+	_scatter(Props.taro(), int(200 * q), 0.8, 1.5, 0.12, 2.0, 0.0, true)
+	_scatter(Props.elephant_grass(), int(220 * q), 0.8, 1.3, 0.1, 2.5, 0.0, true)
+	_scatter(Props.plantain(), int(60 * q), 0.8, 1.2, 0.1, 3.0, 0.0, true)
+	_scatter(Props.grass_tuft(), int(5500 * q), 0.6, 1.3, 0.15, 1.6, 0.0, false, true)
 	_scatter(Props.boulder(), 45, 0.6, 2.2, 0.1, 3.0, 0.9)
 	_scatter(Props.termite_mound(), 25, 0.8, 1.4, 0.05, 3.0, 0.7)
 	_logs(24)

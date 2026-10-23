@@ -1,0 +1,114 @@
+{
+ "dane_gun": {
+  "img": "01a16951-96da-725d-ae84-20f15b844e8d",
+  "i3d": "01a16951-cdd3-7582-8471-7d174b48cea5"
+ },
+ "long_dane": {
+  "img": "01a16951-96e2-7602-a7b8-f63e5998bc3f",
+  "i3d": "01a16951-cc99-77e0-89dd-211607bcafcb"
+ },
+ "blunderbuss": {
+  "img": "01a16951-96e4-7723-86ca-9b39a2ea05db",
+  "i3d": "01a16951-cdaa-74fc-9cc4-82e28fe06e83"
+ },
+ "afena_royal": {
+  "img": "01a16951-96da-72eb-a922-b389af6057b3",
+  "i3d": "01a16951-b463-7533-aed2-b38957259dfc"
+ },
+ "afena_war": {
+  "img": "01a16951-9714-725f-a158-a51e2869dd1d",
+  "i3d": "01a16951-cd5f-766a-aa16-e9c89ae6607a"
+ },
+ "gorilla": {
+  "img": "01a16951-96d8-75d9-aacd-282718743b10",
+  "i3d": "01a16951-cc6f-73f6-9c02-a930ce8e573e",
+  "rig": "01a16953-a914-7694-adf5-93cc808ab54c",
+  "anims": {
+   "idle": "01a16953-e7f7-725b-9963-709dd4dfa32d",
+   "maul": "01a16953-e981-7544-a0d0-d2d49008cd96",
+   "run": "01a16953-eb21-76e8-be53-aa65bd2296e3",
+   "roar": "01a16953-ecba-7352-aff1-0d176dddcdf4",
+   "die": "01a16953-ee49-741a-9354-31c9472c2a67"
+  }
+ },
+ "british_redcoat": {
+  "anims": {
+   "idle": "01a16951-96fa-70d0-ae04-54ef5c2e528b",
+   "shoot": "01a16951-98ea-760d-b83e-b03735226be1",
+   "reload": "01a16951-afcf-737b-b629-cb202800b1f7",
+   "die": "01a16951-b1ae-7047-bee6-470f70205407",
+   "hit": "01a16951-b34c-7368-9e91-23c2ed28f01c",
+   "charge": "01a16951-b4f9-75f9-855f-6556bd8a36a4"
+  }
+ },
+ "west_india_regt": {
+  "anims": {
+   "idle": "01a16951-96f9-759c-8886-f5f6aa4060f1",
+   "shoot": "01a16951-9909-729d-846f-8119a6adf22f",
+   "reload": "01a16951-afe8-7233-915e-cf7eebdd150b",
+   "die": "01a16951-b176-74f6-bc6c-bc5d7944f9d2",
+   "hit": "01a16951-b31d-7793-a245-3c114a7813fa",
+   "charge": "01a16951-b4ce-71fb-bcaf-9a87180f5202"
+  }
+ },
+ "dutch_soldier": {
+  "anims": {
+   "idle": "01a16951-e02f-769c-8d81-52bcb6b4eb3a",
+   "shoot": "01a16951-e239-7539-bb27-274247d99336",
+   "reload": "01a16951-e453-7158-a860-2e7bf81e22a0",
+   "die": "01a16951-e5e1-7437-80b0-5e0704648578",
+   "hit": "01a16951-fc10-7732-9df2-88a5bc41bd1f",
+   "charge": "01a16951-fdce-70d0-af94-b22b2a690f65"
+  }
+ },
+ "asante_scout": {
+  "anims": {
+   "idle": "01a16951-ff3a-7213-bb32-88bbb0d5188a",
+   "slash": "01a16952-019f-74fd-9e6a-012b7559bf31",
+   "cheer": "01a16952-18a6-7451-aaae-add346ad556e",
+   "die": "01a16952-1a1c-71e9-bd0f-8cb895553a05",
+   "sneak": "01a16952-1bb6-734e-955d-bc6bc7514509",
+   "charge": "01a16952-1d53-7385-9587-f843ff39070f"
+  }
+ },
+ "asante_batakari": {
+  "anims": {
+   "idle": "01a16952-3d38-75f7-b28e-131eb522d9a7",
+   "slash": "01a16952-3f7c-714e-973a-da82d66a0bca",
+   "cheer": "01a16952-4150-73e2-b3ea-ac84fcff5af6",
+   "die": "01a16952-42f0-7728-a650-3415a28313de",
+   "sneak": "01a16952-44a8-7116-9957-71035bd88a70",
+   "charge": "01a16952-84bc-7262-9a8c-06026cd4cfd4"
+  }
+ },
+ "asante_ankobia": {
+  "anims": {
+   "idle": "01a16952-64ad-760c-a487-db12be5c4006",
+   "slash": "01a16952-668f-71f1-9475-3647be60c99b",
+   "cheer": "01a16952-684a-7503-953d-da861b925cc5",
+   "die": "01a16952-6a10-7652-8671-57816a0a8e69",
+   "sneak": "01a16952-6c15-771c-9bc5-4cf024666e76",
+   "charge": "01a16952-82aa-7014-a5fb-e5b9bdc90cc7"
+  }
+ },
+ "asante_musketeer": {
+  "anims": {
+   "idle": "01a16952-5176-7321-996d-48aedd349aef",
+   "slash": "01a16952-537e-73ba-b4e1-f7164cb4a957",
+   "cheer": "01a16952-554f-70c2-8536-dccdebee4632",
+   "die": "01a16952-56f0-753e-ade8-7a57e83af66f",
+   "sneak": "01a16952-58ec-7286-960d-da791f494f7d",
+   "charge": "01a16952-5a78-71ff-9bcc-f0232c541039"
+  }
+ },
+ "fante_asafo": {
+  "anims": {
+   "idle": "01a16952-6a85-7598-9777-9294c1b303a8",
+   "slash": "01a16952-6c9b-75d6-a393-07da2c6a849b",
+   "cheer": "01a16952-82ec-7426-a93d-976ad95c9580",
+   "die": "01a16952-84ad-7418-8bbc-051bd1b5c43c",
+   "sneak": "01a16952-8631-7775-be4f-ace879767593",
+   "charge": "01a16952-8821-7708-9da7-4f4b35d63406"
+  }
+ }
+}
