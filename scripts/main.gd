@@ -1,5 +1,8 @@
-extends Node3D
-## Vertical slice: forest ambush, then capture the hill fort. All placeholder shapes.
+class_name Main extends Node3D
+## Mission 1 (Nsamankow, 1824 - prototype): break the column in the forest, then take the hill fort.
+static var inst: Main
+var hud: Hud
+var world: World
 var stage := 0
 var remaining := 0
 var capture := 0.0
@@ -7,132 +10,147 @@ var player
 var cannon: Node3D
 var cannon_t := 6.0
 var flag_zone: Area3D
+var flag: MeshInstance3D
 var enemies := Node3D.new()
+var checkpoint := Vector3.ZERO
 
 func _ready() -> void:
+	inst = self
 	InputSetup.setup()
-	add_child(Hud.new())
-	_env()
-	_ground()
-	for i in 120: _tree(Vector3(randf_range(-70, 70), 0, randf_range(-70, 40)))
-	for i in 60: _bush(Vector3(randf_range(-60, 60), 0, randf_range(-60, 30)))
-	_fort(Vector3(0, 0, -95))
+	hud = Hud.new(); add_child(hud)
+	hud.play_pressed.connect(_start)
+	hud.restart_pressed.connect(func(): get_tree().paused = false; get_tree().reload_current_scene())
+	world = World.new(); add_child(world); world.build()
+	_fort()
 	add_child(enemies)
-	player = _make_player(Vector3(0, 1, 30))
+	_villagers()
+	player = _make_player(Vector3(World.SPAWN.x, world.height(World.SPAWN.x, World.SPAWN.y) + 1.0, World.SPAWN.y))
 	player.died.connect(_on_died)
-	_start_ambush()
+	checkpoint = player.position
+	get_tree().paused = true  # wait in menu
 
-func _mat(c: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new(); m.albedo_color = c; m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX; return m
+func _start() -> void:
+	hud.show_game()
+	if stage == 0 and remaining == 0: _start_ambush()
 
-func _env() -> void:
-	var we := WorldEnvironment.new(); var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR; e.background_color = Color(0.55, 0.65, 0.55)
-	e.fog_enabled = true; e.fog_light_color = Color(0.5, 0.6, 0.5); e.fog_density = 0.02
-	e.ambient_light_color = Color(0.6, 0.6, 0.5); e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	we.environment = e; add_child(we)
-	var sun := DirectionalLight3D.new(); sun.rotation_degrees = Vector3(-50, 30, 0); sun.shadow_enabled = true; add_child(sun)
+# ---------------------------------------------------------------- fort
+func _fort() -> void:
+	var c := Vector3(World.FORT.x, world.fort_top, World.FORT.y)
+	var body := StaticBody3D.new(); add_child(body)
+	var wall := Buildings.wall_mat
+	var walls := [
+		[Vector3(30, 5, 1.2), Vector3(0, 2.5, -15)], [Vector3(1.2, 5, 30), Vector3(-15, 2.5, 0)], [Vector3(1.2, 5, 30), Vector3(15, 2.5, 0)],
+		[Vector3(11, 5, 1.2), Vector3(-9.5, 2.5, 15)], [Vector3(11, 5, 1.2), Vector3(9.5, 2.5, 15)],
+		[Vector3(5, 7, 5), Vector3(-15, 3.5, -15)], [Vector3(5, 7, 5), Vector3(15, 3.5, -15)],  # bastions
+		[Vector3(5, 7, 5), Vector3(-15, 3.5, 15)], [Vector3(5, 7, 5), Vector3(15, 3.5, 15)],
+		[Vector3(5, 3, 5), Vector3(0, 1.5, 9)],  # gun platform
+		[Vector3(10, 4, 6), Vector3(0, 2, -9)],  # barracks
+	]
+	for w in walls:
+		var sz: Vector3 = w[0] + Vector3(0, 3, 0)  # 3 m foundation into the hill
+		var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = sz; mi.mesh = bm
+		var m: ShaderMaterial = wall.duplicate(); m.set_shader_parameter("half_h", sz.y / 2.0); m.set_shader_parameter("dado", 4.0)
+		mi.material_override = m; mi.position = c + w[1] - Vector3(0, 1.5, 0); add_child(mi)
+		var cs := CollisionShape3D.new(); var sh := BoxShape3D.new(); sh.size = w[0]; cs.shape = sh; cs.position = c + w[1]; body.add_child(cs)
+	for x in [-15, 15]:  # bastion guns pointing out
+		for z in [-15, 15]:
+			_cannon_mesh(c + Vector3(x, 7.2, z), atan2(float(x), float(z)))
+	cannon = _cannon_mesh(c + Vector3(0, 3.6, 9), 0.0)
+	var pole := MeshInstance3D.new(); var pm := CylinderMesh.new(); pm.top_radius = 0.06; pm.bottom_radius = 0.08; pm.height = 9
+	pole.mesh = pm; pole.material_override = Props.bark; pole.position = c + Vector3(0, 4.5, -2); add_child(pole)
+	flag = MeshInstance3D.new(); var fm := BoxMesh.new(); fm.size = Vector3(2.4, 1.5, 0.04); flag.mesh = fm
+	var fmat := StandardMaterial3D.new(); fmat.albedo_color = Color(0.75, 0.1, 0.12); flag.material_override = fmat
+	flag.position = c + Vector3(1.25, 8.2, -2); add_child(flag)
+	flag_zone = Area3D.new(); flag_zone.position = c + Vector3(0, 1, -2)
+	var zs := CollisionShape3D.new(); var sp := SphereShape3D.new(); sp.radius = 3.5; zs.shape = sp; flag_zone.add_child(zs); add_child(flag_zone)
 
-func _box(size: Vector3, pos: Vector3, col: Color, parent: Node = self) -> StaticBody3D:
-	var b := StaticBody3D.new(); b.position = pos
-	var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = size; mi.mesh = bm; mi.material_override = _mat(col)
-	var cs := CollisionShape3D.new(); var sh := BoxShape3D.new(); sh.size = size; cs.shape = sh
-	b.add_child(mi); b.add_child(cs); parent.add_child(b); return b
+func _cannon_mesh(pos: Vector3, yaw: float) -> Node3D:
+	var n := Node3D.new(); n.position = pos; n.rotation.y = yaw; add_child(n)
+	var iron := StandardMaterial3D.new(); iron.albedo_color = Color(0.12, 0.12, 0.13); iron.metallic = 0.7; iron.roughness = 0.45
+	var b := MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.2; cm.bottom_radius = 0.32; cm.height = 2.6; cm.radial_segments = 10
+	b.mesh = cm; b.material_override = iron; b.rotation.x = PI / 2; b.position.z = 0.6; n.add_child(b)
+	var carriage := MeshInstance3D.new(); var cb := BoxMesh.new(); cb.size = Vector3(0.9, 0.5, 1.6); carriage.mesh = cb
+	carriage.material_override = Props.bark; carriage.position = Vector3(0, -0.45, -0.1); n.add_child(carriage)
+	for s in [-0.55, 0.55]:
+		var w := MeshInstance3D.new(); var wm := CylinderMesh.new(); wm.top_radius = 0.45; wm.bottom_radius = 0.45; wm.height = 0.12
+		w.mesh = wm; w.material_override = Props.bark; w.rotation.z = PI / 2; w.position = Vector3(s, -0.55, 0.0); n.add_child(w)
+	return n
 
-func _ground() -> void:
-	_box(Vector3(200, 1, 260), Vector3(0, -0.5, -30), Color(0.3, 0.4, 0.2))
-	# hill under the fort, stepped so it is walkable
-	for i in 6: _box(Vector3(60 - i * 7, 1, 50 - i * 6), Vector3(0, i * 1.0 + 0.5, -95), Color(0.4, 0.35, 0.2))
-
-func _tree(p: Vector3) -> void:
-	if p.distance_to(Vector3(0, 0, 30)) < 6: return
-	var t := _box(Vector3(0.8, 9, 0.8), p + Vector3(0, 4.5, 0), Color(0.3, 0.2, 0.1))
-	var mi := MeshInstance3D.new(); var sm := SphereMesh.new(); sm.radius = 3.5; sm.height = 5; sm.radial_segments = 8; sm.rings = 4
-	mi.mesh = sm; mi.material_override = _mat(Color(0.15, 0.35, 0.12)); mi.position.y = 5; t.add_child(mi)
-
-func _bush(p: Vector3) -> void:
-	## hiding spot: player inside is much harder to see
-	var a := Area3D.new(); a.position = p + Vector3(0, 0.8, 0)
-	var mi := MeshInstance3D.new(); var sm := SphereMesh.new(); sm.radius = 1.6; sm.height = 2.0; sm.radial_segments = 6; sm.rings = 3
-	mi.mesh = sm; mi.material_override = _mat(Color(0.2, 0.45, 0.15)); a.add_child(mi)
-	var cs := CollisionShape3D.new(); var sh := SphereShape3D.new(); sh.radius = 1.6; cs.shape = sh; a.add_child(cs)
-	a.body_entered.connect(_foliage.bind(1))
-	a.body_exited.connect(_foliage.bind(-1))
-	add_child(a)
-
-func _foliage(b: Node, d: int) -> void:
-	if b.is_in_group("player"): b.in_foliage += d
-
-func _fort(c: Vector3) -> void:
-	var y := 6.0; var w := Color(0.85, 0.82, 0.75)
-	_box(Vector3(24, 4, 1), c + Vector3(0, y + 2, -12), w)
-	_box(Vector3(1, 4, 24), c + Vector3(-12, y + 2, 0), w)
-	_box(Vector3(1, 4, 24), c + Vector3(12, y + 2, 0), w)
-	_box(Vector3(9, 4, 1), c + Vector3(-7.5, y + 2, 12), w)   # gate gap in the middle
-	_box(Vector3(9, 4, 1), c + Vector3(7.5, y + 2, 12), w)
-	_box(Vector3(4, 3, 4), c + Vector3(0, y + 1.5, 9), w)     # cannon platform
-	cannon = Node3D.new(); cannon.position = c + Vector3(0, y + 3.5, 9); add_child(cannon)
-	var barrel := MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.25; cm.bottom_radius = 0.35; cm.height = 2.5
-	barrel.mesh = cm; barrel.material_override = _mat(Color(0.1, 0.1, 0.1)); barrel.rotation_degrees.x = 90; cannon.add_child(barrel)
-	var pole := _box(Vector3(0.2, 6, 0.2), c + Vector3(0, y + 3, -4), Color(0.4, 0.3, 0.2))
-	var flag := MeshInstance3D.new(); var fm := BoxMesh.new(); fm.size = Vector3(2, 1.2, 0.05); flag.mesh = fm
-	flag.material_override = _mat(Color(0.8, 0.1, 0.1)); flag.position = Vector3(1, 2.4, 0); flag.name = "Flag"; pole.add_child(flag)
-	flag_zone = Area3D.new(); flag_zone.position = c + Vector3(0, y + 1, -4)
-	var cs := CollisionShape3D.new(); var sh := SphereShape3D.new(); sh.radius = 3; cs.shape = sh; flag_zone.add_child(cs); add_child(flag_zone)
-
+# ---------------------------------------------------------------- actors
 func _make_player(p: Vector3):
 	var b := CharacterBody3D.new(); b.set_script(load("res://scripts/player.gd")); b.position = p
-	var cs := CollisionShape3D.new(); var sh := CapsuleShape3D.new(); cs.shape = sh; cs.position.y = 1; b.add_child(cs)
-	var cam := Camera3D.new(); cam.name = "Cam"; cam.position.y = 1.6; b.add_child(cam)
-	var r := RayCast3D.new(); r.name = "Ray"; r.target_position = Vector3(0, 0, -120); cam.add_child(r)
+	var cs := CollisionShape3D.new(); var sh := CapsuleShape3D.new(); sh.radius = 0.4; cs.shape = sh; cs.position.y = 1; b.add_child(cs)
+	var cam := Camera3D.new(); cam.name = "Cam"; cam.position.y = 1.6; cam.near = 0.05; cam.far = 400; b.add_child(cam)
+	var r := RayCast3D.new(); r.name = "Ray"; r.target_position = Vector3(0, 0, -150); cam.add_child(r)
+	b.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(b); return b
 
-func _make_enemy(p: Vector3, post := false) -> void:
-	var b := CharacterBody3D.new(); b.set_script(load("res://scripts/enemy.gd")); b.position = p
-	var cs := CollisionShape3D.new(); var sh := CapsuleShape3D.new(); cs.shape = sh; cs.position.y = 1; b.add_child(cs)
-	var mi := MeshInstance3D.new(); var cm := CapsuleMesh.new(); mi.mesh = cm; mi.position.y = 1; mi.material_override = _mat(Color(0.75, 0.1, 0.1)); b.add_child(mi)
-	var hat := MeshInstance3D.new(); var hm := CylinderMesh.new(); hm.top_radius = 0.25; hm.bottom_radius = 0.25; hm.height = 0.4; hat.mesh = hm
-	hat.position.y = 2.2; hat.material_override = _mat(Color.BLACK); b.add_child(hat)
+func _make_enemy(p: Vector3, kind: String, post := false) -> void:
+	var b := CharacterBody3D.new(); b.set_script(load("res://scripts/enemy.gd"))
+	b.position = Vector3(p.x, world.height(p.x, p.z) + 0.6, p.z) if p.y == 0.0 else p
+	b.kind = kind
+	var cs := CollisionShape3D.new(); var sh := CapsuleShape3D.new(); sh.radius = 0.4; cs.shape = sh; cs.position.y = 1; b.add_child(cs)
 	var e := RayCast3D.new(); e.name = "Eye"; e.position.y = 1.6; b.add_child(e)
 	b.static_post = post
 	enemies.add_child(b); remaining += 1
 
+func _villagers() -> void:
+	## townsfolk strolling in the neighbourhood
+	var ids := ["asante_musketeer", "asante_ankobia", "fante_asafo", "asante_batakari"]
+	var c := Vector3(World.VILLAGE.x, world.village_h, World.VILLAGE.y)
+	for i in ids.size():
+		if not Characters.exists(ids[i]): continue
+		var n := Node3D.new(); n.set_script(load("res://scripts/villager.gd"))
+		n.position = c + Vector3(randf_range(-2, 2), 0, -18 + i * 10); add_child(n)
+		n.setup(ids[i], c)
+
+# ---------------------------------------------------------------- mission flow
 func _start_ambush() -> void:
 	stage = 0
-	Hud.objective("Ambush the British column in the forest (stay in the bushes, crouch)")
-	for i in 5: _make_enemy(Vector3(randf_range(-15, 15), 1, randf_range(-40, -20)))
+	Hud.objective("Nsamankow, 1824. A British column marches up the red road. Hide in the bush and break it.")
+	var kinds := ["british_redcoat", "west_india_regt", "british_redcoat", "west_india_regt", "british_redcoat", "british_redcoat"]
+	for i in kinds.size():
+		var z := 40.0 - i * 4.0
+		_make_enemy(Vector3(world.path_x(z) + randf_range(-2, 2), 0, z), kinds[i])
 
 func _start_fort() -> void:
 	stage = 1
-	Hud.objective("Take the hill fort: clear the defenders and silence the cannon")
-	var c := Vector3(0, 7, -95)
-	for off in [Vector3(-6, 0, 6), Vector3(6, 0, 6), Vector3(0, 0, -8), Vector3(-8, 0, -6)]:
-		_make_enemy(c + off, true)
+	checkpoint = Vector3(world.path_x(-40), world.height(world.path_x(-40), -40) + 1, -40)
+	Hud.objective("Take the hill fort. Silence the cannon crews and clear the walls.")
+	var c := Vector3(World.FORT.x, world.fort_top, World.FORT.y)
+	var posts := [[Vector3(-4, 3.2, 9), "british_redcoat"], [Vector3(4, 3.2, 9), "west_india_regt"], [Vector3(-8, 0.1, 4), "british_redcoat"],
+		[Vector3(8, 0.1, -4), "west_india_regt"], [Vector3(-15, 7.1, -15), "british_redcoat"], [Vector3(15, 7.1, 15), "british_redcoat"]]
+	for p in posts: _make_enemy(c + p[0] + Vector3(0, 0.5, 0), p[1], true)
 
 func enemy_down() -> void:
 	remaining -= 1
-	if remaining > 0: Hud.msg("Enemy down. %d left" % remaining); return
-	if stage == 0: Hud.msg("Column broken!"); _start_fort()
-	elif stage == 1: stage = 2; Hud.objective("Stand at the flag to capture the fort")
+	if remaining > 0: Hud.msg("Enemy down  ·  %d left" % remaining); return
+	if stage == 0: Hud.msg("The column breaks and flees!"); _start_fort()
+	elif stage == 1: stage = 2; Hud.objective("The walls are yours. Stand at the flag to raise the Asante colours.")
 
 func _process(dt: float) -> void:
+	if get_tree().paused or not player: return
 	if stage == 1 and cannon:
-		var to: Vector3 = player.global_position - cannon.global_position
 		cannon.look_at(player.global_position)
 		cannon_t -= dt
-		if cannon_t <= 0 and to.length() < 70:
-			cannon_t = [12.0, 8.0, 5.0][Game.difficulty]
-			Hud.msg("CANNON FIRE! Take cover behind trees!")
-			var q := PhysicsRayQueryParameters3D.create(cannon.global_position, player.global_position + Vector3.UP)
+		if cannon_t <= 0 and cannon.global_position.distance_to(player.global_position) < 80:
+			cannon_t = [12.0, 8.0, 5.5][Game.difficulty]
+			var muzzle: Vector3 = cannon.global_position - cannon.global_basis.z * 1.6
+			Fx.smoke(self, muzzle, 3.0); Fx.flash(self, muzzle)
+			Hud.msg("CANNON! Get behind a tree!")
+			var q := PhysicsRayQueryParameters3D.create(muzzle, player.global_position + Vector3.UP)
 			var hit := get_world_3d().direct_space_state.intersect_ray(q)
 			if hit and hit.collider == player: player.hurt(45)
 	if stage == 2 and player in flag_zone.get_overlapping_bodies():
-		capture += dt; Hud.msg("Capturing... %d%%" % (capture / 5.0 * 100))
+		capture += dt; Hud.msg("Raising the colours... %d%%" % int(capture / 5.0 * 100))
 		if capture >= 5.0:
-			stage = 3; Hud.objective("FORT CAPTURED. Mission complete!")
-			find_child("Flag", true, false).material_override = _mat(Color(0.9, 0.75, 0.1))
+			stage = 3
+			flag.material_override.albedo_color = Color(0.85, 0.66, 0.12)
+			Hud.objective("Fort taken.")
+			await get_tree().create_timer(1.5).timeout
+			hud.show_end("PIAW! FORT TAKEN")
 
 func _on_died() -> void:
-	Hud.objective("You fell. Restarting from checkpoint...")
-	await get_tree().create_timer(2.0).timeout
-	player.hp = 100; player.position = Vector3(0, 1, 30) if stage == 0 else Vector3(0, 1, -50)
+	Hud.objective("You fell. Back to the last checkpoint...")
+	await get_tree().create_timer(1.5).timeout
+	player.hp = 100; player.position = checkpoint; player.velocity = Vector3.ZERO

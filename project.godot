@@ -5,7 +5,18 @@ config/name="Piaw"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.3")
 
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=4
+
+[input_devices]
+pointing/emulate_mouse_from_touch=true
+
 [rendering]
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-textures/canvas_textures/default_texture_filter=0
+textures/canvas_textures/default_texture_filter=1
+anti_aliasing/quality/msaa_3d=1

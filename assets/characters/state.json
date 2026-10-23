@@ -1,0 +1,50 @@
+{
+ "asante_ankobia": {
+  "i3d": "01a16921-ea05-75b3-b327-5b318260f1da",
+  "glb": true,
+  "rig": "01a16924-5fec-76a3-952b-fbc55ed498e7",
+  "rigged": true
+ },
+ "asante_batakari": {
+  "i3d": "01a16921-f0d7-725a-9668-db5f1404919e",
+  "glb": true,
+  "rig": "01a16924-6bc6-77df-b42a-f5530f2896c6",
+  "rigged": true
+ },
+ "asante_musketeer": {
+  "i3d": "01a16921-f61e-75f3-b15b-a70ce1b46d0e",
+  "glb": true,
+  "rig": "01a16924-7a8e-76e8-a259-a457ec493eaf",
+  "rigged": true
+ },
+ "asante_scout": {
+  "i3d": "01a16921-fb5a-7631-8936-c3954330af02",
+  "glb": true,
+  "rig": "01a16924-8697-7679-9ea9-90b770badb9e",
+  "rigged": true
+ },
+ "british_redcoat": {
+  "i3d": "01a16922-0144-7321-ab65-0dfa883a74e6",
+  "glb": true,
+  "rig": "01a16924-92bc-71ea-94fc-1a02d9dfd079",
+  "rigged": true
+ },
+ "dutch_soldier": {
+  "i3d": "01a16922-0650-755a-8310-c68d778557f3",
+  "glb": true,
+  "rig": "01a16924-9d99-7270-a77d-953aecc1c01c",
+  "rigged": true
+ },
+ "fante_asafo": {
+  "i3d": "01a16922-0b73-7242-84af-360d6e4aec28",
+  "glb": true,
+  "rig": "01a16924-a899-7426-bf5b-e79dcdce97e8",
+  "rigged": true
+ },
+ "west_india_regt": {
+  "i3d": "01a16922-1083-73c4-986f-ecf696ee6e34",
+  "glb": true,
+  "rig": "01a16924-b3b0-7486-ac8b-a0358f42d2ea",
+  "rigged": true
+ }
+}
